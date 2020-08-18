@@ -40,6 +40,12 @@ export const getRandomItemFromEnum = <T>(anEnum: T): T[keyof T] => {
   return anEnum[key]
 }
 
+export const getRandomItemFromListOtherThan = <T>(items: T[], exclude: T[]): T => {
+  const guess = getRandomItemFromList(items)
+  if (exclude.includes(guess)) return getRandomItemFromListOtherThan(items, exclude)
+  return guess
+}
+
 export const generateRandomSentence = (): string => {
   const adjective = getRandomItemFromList(words.adjectives)
   const color = getRandomItemFromList(words.colors)

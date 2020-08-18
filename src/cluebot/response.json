@@ -49,16 +49,29 @@
         " You missed the Room! Give it another shot",
         " Room is the most important in this crime investigation! And you haven't thougt about it properly "
     ],
-    "guessed": [
+    "hasWon": [
         " seems like you already solved the muder mystery, detective!"
     ],
+    "hasFailed": [
+        " seems like you cant accuse anymore, detective!"
+    ],
     "outOfGuesses": [
+        " seeme like you dont have any more changes!",
+        " you already failed! better not disturb me"
+    ],
+    "outOfInvestigataion": [
         " seeme like you dont have any more changes!",
         " you already failed! better not disturb me"
     ],
     "falseGuess": [
         " dont trick me! One killer, One Room and One Object",
         " you can't oversmart me!"
+    ],
+    "incorrectAccuse": [
+        " Ops! You are out of the game"
+    ],
+    "inclompleteAccuse": [
+        " seems like you missed something in your accusition."
     ],
     "rulesLines":[
         " yesterday at midnight there was a crime commited at the Crimmson villa.",
@@ -68,7 +81,14 @@
         " You have got 5 chances to guess! I am an optimist so I dont like negation.",
         " If you fail you are out! forever..."
     ],
-    "winner": " You finally made it! \nThanks for supporting HOPR. \nClaim your Dai here: "  
+    "payment": " You finally made it! \nThanks for supporting HOPR. \nClaim your Dai here: ",  
+    "noPayment": " You finally made it! \nThanks for supporting HOPR.",
+    "successInvestigate": [
+        " successfull investigation"
+    ],
+    "failInvestigate": [
+        " failed investigation"
+    ] 
 }
 
   
