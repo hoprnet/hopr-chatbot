@@ -53,4 +53,8 @@ export class TweetMessage {
             })(this.content) 
             : false
     }
+
+    isValidHOPRTweet(hoprAddress: string) {
+        return this.hasTag('hoprgames') && this.hasMention('hoprnet') && this.hasSameHOPRNode(hoprAddress)
+    }
 }

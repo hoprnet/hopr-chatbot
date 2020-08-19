@@ -1,4 +1,4 @@
-import { API_URL, BOT_NAME, DRY_RUN } from './env'
+import { API_URL, BOT_NAME, DRY_RUN, BOUNTY_MODE, BOUNTY_VALUE, BOUNTY_COUNT } from './env'
 import { getHoprAddress  } from './utils'
 import { setupBot, Bot } from './bot'
 import { setupPayDai, payDai } from './linkdrop'
@@ -29,9 +29,9 @@ const start = async () => {
       const { Tweetbot } = await import("./tweetbot")
       bot = new Tweetbot(hoprAddress)
       break
-    case 'cluebot':
-      const { Cluebot } = await import("./cluebot")
-      bot = new Cluebot(hoprAddress)
+    case 'mysterybot':
+      const { Mysterybot } = await import("./mysterybot")
+      bot = new Mysterybot(hoprAddress, BOUNTY_MODE, BOUNTY_COUNT, BOUNTY_VALUE)
       break
   }
   await setupPayDai(10)

@@ -15,6 +15,9 @@ let parsed: {
   DAI_ADDRESS: string
   CAMPAIGN_ID: number
   DRY_RUN: boolean
+  BOUNTY_MODE: boolean
+  BOUNTY_COUNT: number
+  BOUNTY_VALUE: number
 } = {
   API_URL: '127.0.0.1:50051',
   BOT_NAME: 'randobot',
@@ -29,6 +32,9 @@ let parsed: {
   DAI_ADDRESS: '6b175474e89094c44da98b954eedeac495271d0f',
   CAMPAIGN_ID: 1,
   DRY_RUN: false,
+  BOUNTY_MODE: false,
+  BOUNTY_COUNT: 0,
+  BOUNTY_VALUE: 0
 }
 
 try {
@@ -58,3 +64,6 @@ export const CHAIN = parsed.CHAIN
 export const DAI_ADDRESS = parsed.DAI_ADDRESS
 export const CAMPAIGN_ID = parsed.CAMPAIGN_ID
 export const DRY_RUN = parsed.DRY_RUN
+export const BOUNTY_MODE = parsed.BOUNTY_MODE
+export const BOUNTY_COUNT = parsed.BOUNTY_COUNT
+export const BOUNTY_VALUE = parsed.BOUNTY_VALUE

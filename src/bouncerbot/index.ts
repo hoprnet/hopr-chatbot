@@ -61,7 +61,7 @@ export class Bouncebot implements Bot{
     const tweet = new TweetMessage(message.text)
     await tweet.fetch()
     // check if the the tweet is valid
-    if (tweet.hasTag('hoprgames') && tweet.hasMention('hoprnet') && tweet.hasSameHOPRNode(message.from)) {
+    if (tweet.isValidHOPRTweet(message.from)) {
       sendMessage(message.from, {
         from: this.address,
         text: getRandomItemFromList(response['tweetSuccess']),

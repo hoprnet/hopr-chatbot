@@ -40,10 +40,10 @@ export const getRandomItemFromEnum = <T>(anEnum: T): T[keyof T] => {
   return anEnum[key]
 }
 
-export const getRandomItemFromListOtherThan = <T>(items: T[], exclude: T[]): T => {
-  const guess = getRandomItemFromList(items)
-  if (exclude.includes(guess)) return getRandomItemFromListOtherThan(items, exclude)
-  return guess
+export const getRandomItemFromEnumOtherThan = <T>(anEnum: T, exclude: any[]): T[keyof T] => {
+  const guess = getRandomItemFromList(Object.keys(anEnum))
+  if (exclude.includes(anEnum[guess])) return getRandomItemFromEnumOtherThan(anEnum, exclude)
+  return anEnum[guess]
 }
 
 export const generateRandomSentence = (): string => {

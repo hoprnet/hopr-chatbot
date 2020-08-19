@@ -3,75 +3,25 @@ import {
   getRandomItemFromList, 
   getRandomItemFromEnum, 
   filterEnumValuesInSting,
-  getRandomItemFromListOtherThan
+  getRandomItemFromEnumOtherThan
 } from '../utils'
 import { IMessage } from '../message'
 import { ListenResponse } from '@hoprnet/hopr-protos/node/listen_pb'
 import { Bot } from '../bot'
 import { payDai } from '../linkdrop'
+import { TweetMessage } from '../twitter'
 import response from './response.json'
+import { Crime, Killer, Weapon, Room } from './crime'
+import { UserState } from './user'
 
-enum Killer {
-  Plum = 'plum',
-  Mustard = 'mustard',
-  Green = 'green',
-  White = 'white',
-  Scarlett = 'scarlett',
-  Peacock = 'peacock'
-}
 
-enum Weapon {
-  Candlestick = 'candlestick',
-  Dagger = 'dagger',
-  Lead_Pipe = 'lead pipe',
-  Revolver = 'revolver',
-  Rope = 'rope',
-  Spanner = 'spanner'
-}
-
-enum Room {
-  Kitchen = 'kitchen',
-  Conservatory = 'conservatory',
-  Library = 'library',
-  Dinning = 'dinning',
-  Ballroom = 'ballroom',
-  Hall = 'hall',
-  Study = 'study',
-  Lounge = 'lounge',
-  Billiard = 'billiard'
-}
-
-class Crime {
-  killer: Killer
-  weapon: Weapon
-  room: Room
-
-  constructor(killer: Killer, weapon: Weapon, room: Room) {
-    this.killer = killer
-    this.weapon = weapon
-    this.room = room
-  }
-
-  statement(): string {
-    return `${this.killer} killed at the ${this.room} using the ${this.weapon}!`
-  }
-}
-
-enum NodeStates {
-  IsGuessing,
-  HasAccused,
-}
-
-export class Cluebot implements Bot {
+export class Mysterybot implements Bot {
   botName: string
   address: string
   maxGuesses: number
   maxInvestigations: number
   truth: Crime
-  status: Map<string, NodeStates>
-  guesses: Map<string, number>
-  investigations: Map<string, number>
-  isWinner: Map<string, boolean>
+  users: Map<string, UserState>
   bountyMode: boolean
   totalBountyCount: number
   bountyAmount: number
@@ -95,24 +45,21 @@ export class Cluebot implements Bot {
     console.log(`${this.botName} has been added`)
     this.maxGuesses = 5
     this.maxInvestigations = 3
-    this.status = new Map<string, NodeStates>()
-    this.guesses = new Map<string, number>()
-    this.investigations = new Map<string, number>()
-    this.isWinner = new Map<string, boolean>()
+    this.users = new Map<string, UserState>()
     // Uncomment to log the result while debugging
     console.log('Crime:' + this.truth.statement())
   }
 
   async handleMessage(message: IMessage) {
     console.log(`${this.botName} <- ${message.from}: ${message.text}`)
-    if (!this.status.has(message.from)) return this.handleNew(message)
-    const state = this.status.get(message.from)
+    if (!this.users.has(message.from)) return this.handleNew(message)
     
+    const user = this.users.get(message.from) 
     if (message.text.substring(0, 5) === 'Rules') this.handleRules(message)
     else if(message.text.substring(0, 7) == 'Winners') this.handleWinners(message)
     else if(message.text.substring(0, 5) == 'Guess') this.handleGuess(message)
     else if(message.text.substring(0, 6) == 'Accuse') {
-      if (state == NodeStates.HasAccused) this.handleHasAccused(message)
+      if (user.hasAccused) this.handleHasAccused(message)
       else this.handleAccuse(message)
     }
     else if(message.text.substring(0, 11) == 'Investigate') this.handleInvestigate(message)
@@ -127,18 +74,21 @@ export class Cluebot implements Bot {
     })
   }
 
-  handleAccuse(message) {
+  async handleAccuse(message) {
     let text = ''
     if (this.bountyMode) {
-      // get tweet and that bullshit
+      const tweet = new TweetMessage(message.text)
+      await tweet.fetch()
+      if (tweet.isValidHOPRTweet(message.from)) text = tweet.content
     } else {
       text = message.text.toLowerCase()
     }
     const guess = this.parseGuess(text)
+    let user = this.users.get(message.from)
     if (guess.isGuess) {
-      this.status.set(message.from, NodeStates.HasAccused)
+      user.hasAccused = true
       if (guess.isKillerCorrect && guess.isWeaponCorrect && guess.isRoomCorrect) {
-        this.isWinner.set(message.from, true)
+        user.isWinner = true
         this.handlePay(message)
       } else {
         sendMessage(message.from, {
@@ -152,17 +102,18 @@ export class Cluebot implements Bot {
         text: getRandomItemFromList(response['inclompleteAccuse'])
       })
     }
+    this.users.set(message.from, user)
   }
 
   handleGuess(message) {
     const guess = this.parseGuess(message.text.toLowerCase())
     let reply: string
+    let user = this.users.get(message.from)
     if (guess.isValid) {
-      const guessCnt = this.guesses.get(message.from)
-      if (guessCnt >= this.maxGuesses)
+      if (user.guessCnt >= this.maxGuesses)
         reply = getRandomItemFromList(response['outOfGuesses'])
       else {
-        this.guesses.set(message.from, guessCnt + 1)
+        user.guessCnt += 1
         if(guess.isKillerCorrect && guess.isWeaponCorrect && guess.isRoomCorrect) {
           reply = getRandomItemFromList(response['correctComplete'])
         } 
@@ -185,21 +136,22 @@ export class Cluebot implements Bot {
       else if (guess.missedRoom) reply = getRandomItemFromList(response['missedRoom'])
       else reply = getRandomItemFromList(response['falseGuess'])
     }
-    return sendMessage(message.from, {
+    sendMessage(message.from, {
         from: this.address,
         text: reply,
     })
+    this.users.set(message.from, user)
   }
 
   handleInvestigate(message: IMessage) {
-    let investigationCnt = this.investigations.get(message.from)
-    if (investigationCnt < this.maxInvestigations) {
-      this.investigations.set(message.from, investigationCnt + 1)
+    let user = this.users.get(message.from)
+    if (user.investigationCnt < this.maxInvestigations) {
+      user.investigationCnt += 1
       const phrase = message.text.toLowerCase()
       const isRoomCorrect = phrase.includes(this.truth.room)
       let reply = isRoomCorrect ? response['successInvestigate'] : response['failInvestigate']
-      const randomWeapon = getRandomItemFromListOtherThan(Object.keys(Weapon), [Weapon[this.truth.weapon]])
-      const randomKiller = getRandomItemFromListOtherThan(Object.keys(Killer), [Weapon[this.truth.killer]])
+      const randomWeapon = getRandomItemFromEnumOtherThan(Weapon, user.excludeInvestigationWeapon)
+      const randomKiller = getRandomItemFromEnumOtherThan(Killer, user.excludeInvestigationKiller)
       sendMessage(message.from, {
           from: this.address,
           text: reply + `. Eliminate ${randomKiller} and ${randomWeapon}`,
@@ -210,6 +162,7 @@ export class Cluebot implements Bot {
           text: getRandomItemFromList(response['outOfInvestigataion']),
       })
     }
+    this.users.set(message.from, user)
   }
 
   parseGuess(phrase: string) {
@@ -239,9 +192,7 @@ export class Cluebot implements Bot {
         from: this.address,
         text: rules1,
     })
-    this.status.set(message.from, NodeStates.IsGuessing)
-    this.guesses.set(message.from, 0)
-    this.investigations.set(message.from, 0)
+    this.users.set(message.from, new UserState(this.truth))
   }
 
   handleHelp(message: IMessage) {
@@ -258,7 +209,8 @@ export class Cluebot implements Bot {
   }
 
   handleHasAccused(message: IMessage) {
-    if (this.isWinner.get(message.from)) {
+    let user = this.users.get(message.from)
+    if (user.isWinner) {
       sendMessage(message.from, {
           from: this.address,
           text: getRandomItemFromList(response['hasWon']),
@@ -272,27 +224,31 @@ export class Cluebot implements Bot {
   }
 
   handleRules(message: IMessage) {
-    const guessCnt = this.maxGuesses - this.guesses.get(message.from)
-    const investigationCnt = this.maxInvestigations - this.investigations.get(message.from)
-    const hasAccused = this.status.has(message.from) && this.status.get(message.from) == NodeStates.HasAccused
-    const accusedCnt = hasAccused ? 0 : 1
+    let user = this.users.get(message.from)
+    const guessLeft = this.maxGuesses - user.guessCnt
+    const investigationLeft = this.maxInvestigations - user.investigationCnt
+    const accusedCnt = user.hasAccused ? 0 : 1
     sendMessage(message.from, {
       from: this.address,
-      text: `You have ${guessCnt} guesses, ${investigationCnt} investigations, ${accusedCnt} accussitions`,
+      text: `You have ${guessLeft} guesses, ${investigationLeft} investigations, ${accusedCnt} accussitions`,
     })  
   }
 
   handleWinners(message: IMessage) {
-    let winnerList = Array.from(this.isWinner.keys())
+    let winnerList = []
+    this.users.forEach((user, id) => {
+      if(user.isWinner) winnerList.push(id)
+    })
     sendMessage(message.from, {
       from: this.address,
       text: 'Winner list is as follows: ' + winnerList.join(', '),
-    }) 
+    })
   }
 
   async handlePay(message) {
-    if (this.bountyMode && Object.keys(this.isWinner).length <= this.totalBountyCount) {
-      const payUrl = await payDai(10.0) 
+    let user = this.users.get(message.from)
+    if (this.bountyMode && Object.keys(user.isWinner).length <= this.totalBountyCount) {
+      const payUrl = await payDai(this.bountyAmount) 
       console.log(`Payment link generated: ${payUrl}`)
       sendMessage(message.from, {
         from: this.address,
