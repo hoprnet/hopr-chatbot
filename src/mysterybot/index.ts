@@ -13,6 +13,7 @@ import { TweetMessage } from '../twitter'
 import response from './response.json'
 import { Crime, Killer, Weapon, Room } from './crime'
 import { UserState } from './user'
+import Mustache from 'mustache'
 
 
 export class Mysterybot implements Bot {
@@ -149,13 +150,23 @@ export class Mysterybot implements Bot {
       user.investigationCnt += 1
       const phrase = message.text.toLowerCase()
       const isRoomCorrect = phrase.includes(this.truth.room)
-      let reply = isRoomCorrect ? response['successInvestigate'] : response['failInvestigate']
-      const randomWeapon = getRandomItemFromEnumOtherThan(Weapon, user.excludeInvestigationWeapon)
-      const randomKiller = getRandomItemFromEnumOtherThan(Killer, user.excludeInvestigationKiller)
-      sendMessage(message.from, {
-          from: this.address,
-          text: reply + `. Eliminate ${randomKiller} and ${randomWeapon}`,
-      })
+      if (isRoomCorrect) {
+        sendMessage(message.from, {
+            from: this.address,
+            text: getRandomItemFromList(response['correctInvestigation']),
+        })
+      } else {
+        const weapon = getRandomItemFromEnumOtherThan(Weapon, user.excludeInvestigationWeapon)
+        const suspect = getRandomItemFromEnumOtherThan(Killer, user.excludeInvestigationKiller)
+        const reply = Mustache.render(getRandomItemFromList(response['incorrectInvestigation']), {
+          weapon: weapon,
+          suspect: suspect,  
+        })
+        sendMessage(message.from, {
+            from: this.address,
+            text: reply,
+        })
+      }
     } else {
       sendMessage(message.from, {
           from: this.address,

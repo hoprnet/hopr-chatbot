@@ -60,8 +60,7 @@
         " you already failed! better not disturb me"
     ],
     "outOfInvestigataion": [
-        " seeme like you dont have any more changes!",
-        " you already failed! better not disturb me"
+        " The inspector is firm: That's more than enough snooping around. What do you think happened?",
     ],
     "falseGuess": [
         " dont trick me! One killer, One Room and One Object",
@@ -72,6 +71,12 @@
     ],
     "inclompleteAccuse": [
         " seems like you missed something in your accusition."
+    ],
+    "incorrectInvestigation": [
+        "You visit the {{room}}, and find no signs of a struggle. The {{weapon}} is on a table, obviously unused. A maid sits in the corner, crying. After gentle questioning, she admits that she was with {{suspect}} at the time of the murder."
+    ],
+    "correctInvestigation": [
+        "Shattered glass, overturned furniture. This must be where it happened."
     ],
     "rulesLines":[
         " yesterday at midnight there was a crime commited at the Crimmson villa.",
