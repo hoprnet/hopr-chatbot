@@ -91,6 +91,7 @@ export class Mysterybot implements Bot {
       if (guess.isKillerCorrect && guess.isWeaponCorrect && guess.isRoomCorrect) {
         user.isWinner = true
         this.handlePay(message)
+        this.resetGame()
       } else {
         sendMessage(message.from, {
             from: this.address,
@@ -156,9 +157,13 @@ export class Mysterybot implements Bot {
             text: getRandomItemFromList(response['correctInvestigation']),
         })
       } else {
+        const room = filterEnumValuesInSting(phrase, Room)[0]
         const weapon = getRandomItemFromEnumOtherThan(Weapon, user.excludeInvestigationWeapon)
         const suspect = getRandomItemFromEnumOtherThan(Killer, user.excludeInvestigationKiller)
+        user.excludeInvestigationKiller.push(suspect)
+        user.excludeInvestigationWeapon.push(weapon)
         const reply = Mustache.render(getRandomItemFromList(response['incorrectInvestigation']), {
+          room: room,
           weapon: weapon,
           suspect: suspect,  
         })
@@ -254,6 +259,28 @@ export class Mysterybot implements Bot {
       from: this.address,
       text: 'Winner list is as follows: ' + winnerList.join(', '),
     })
+  }
+
+  resetGame() {
+    this.truth = new Crime(
+      getRandomItemFromEnum(Killer),
+      getRandomItemFromEnum(Weapon),
+      getRandomItemFromEnum(Room)
+    )
+    console.log('Crime:' + this.truth.statement())
+    this.users.forEach((user, id) => {
+      user.guessCnt = 0
+      user.investigationCnt = 0
+      user.excludeInvestigationKiller = [this.truth.killer]
+      user.excludeInvestigationWeapon = [this.truth.weapon]
+      if (!user.isWinner) {
+        sendMessage(id, {
+          from: this.address,
+          text: 'Seems like the mystery was solved by some who oversmarts! Here is a new case again',
+        })
+      }
+      this.users.set(id, user)  
+    })  
   }
 
   async handlePay(message) {
