@@ -3,7 +3,7 @@ export enum Killer {
   Mustard = 'mustard',
   Green = 'green',
   White = 'white',
-  Scarlett = 'scarlett',
+  Scarlet = 'scarlet',
   Peacock = 'peacock'
 }
 
@@ -20,7 +20,7 @@ export enum Room {
   Kitchen = 'kitchen',
   Conservatory = 'conservatory',
   Library = 'library',
-  Dinning = 'dinning',
+  Dining = 'dining',
   Ballroom = 'ballroom',
   Hall = 'hall',
   Study = 'study',
