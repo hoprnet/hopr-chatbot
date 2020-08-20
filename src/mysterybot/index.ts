@@ -101,7 +101,7 @@ export class Mysterybot implements Bot {
     } else {
       sendMessage(message.from, {
         from: this.address,
-        text: getRandomItemFromList(response['inclompleteAccuse'])
+        text: getRandomItemFromList(response['incompleteAccuse'])
       })
     }
     this.users.set(message.from, user)
@@ -202,7 +202,7 @@ export class Mysterybot implements Bot {
     const rules1 = response['rulesLines'].slice(3).join('\n')
     sendMessage(message.from, {
         from: this.address,
-        text: ' Seems like you are the new detective! Let me introduce you to the crime scene\n' + rules0,
+        text: ' You must be the new recruit! Let me introduce you to the crime scene\n' + rules0,
     })
     sendMessage(message.from, {
         from: this.address,
@@ -246,7 +246,7 @@ export class Mysterybot implements Bot {
     const accusedCnt = user.hasAccused ? 0 : 1
     sendMessage(message.from, {
       from: this.address,
-      text: `You have ${guessLeft} guesses, ${investigationLeft} investigations, ${accusedCnt} accussitions`,
+      text: `You have ${guessLeft} guesses and ${investigationLeft} investigations left. You can make exactly one ${accusedCnt} accusation`,
     })  
   }
 
@@ -276,7 +276,7 @@ export class Mysterybot implements Bot {
       if (!user.isWinner) {
         sendMessage(id, {
           from: this.address,
-          text: 'Seems like the mystery was solved by some who oversmarts! Here is a new case again',
+          text: 'Seems like this mystery has already been solved by someone faster! Here's a new case',
         })
       }
       this.users.set(id, user)  
