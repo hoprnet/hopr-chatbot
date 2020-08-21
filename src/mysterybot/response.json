@@ -8,15 +8,15 @@
         " I'm afraid you've caught the wrong killer and now I'm starting to think that you hold a grudge with them"
     ],
     "knowsWeapon": [
-        " I'm impress that you've found the Weapon", 
-        " it seems you have a keen sense of deduction cause my friend the weapon you deduced is correct!"
+        " I'm impressed: that's definitely the right weapon", 
+        " Maybe we can make a detective out of you yet: you've found the weapon!"
     ],
     "wrongWeapon": [
-        " Persistent, aren’t you? but I'm sorry you are imaging the murder from a different perspective cause this weapon is blood-free"
+        " I like to encourage my recruits to think outside the box, but there's no way that weapon was involved in this crime."
     ],
     "knowsRoom": [
-        " were you spectating the murder? the place seems correct!", 
-        " you my friend have guessed the place of murder correctly!"
+        " This case is really coming together now. That's definitely where the murder happened.", 
+        " Yes, "
     ],
     "wrongRoom": [
         " Naa I don't think you can ever find the location of murder."
@@ -26,51 +26,51 @@
         " Wait are you... nevermind - I'm impressed - cause you've deduced everything! "
     ],
     "wrongComplete": [
-        " Its not as simple as you think, you know!",
-        " Unfortunately none of your deductions are correct :("
+        " What are you talking about? None of that is right at all!",
+        " Unfortunately none of those dedcutions is correct. Which I suppose is almost impressively bad..."
     ],
     "randomSentence": [
-        " Don't bore me.. Ask for help if you dont know anything!",
-        " I think you dont know around here, look for help "
+        " Don't waste my time! If you don't know what to do, ask for help.",
+        " I don't know what you're doing, but it sounds like you need some help."
     ],
     "hasNegation": [
-        " Didnt I say you earlier! I dont like pesimists...",
-        " Uff, Ask me straight!"
+        " I don't care what didn't happen! I want to know what did.",
+        " Don't overcomplicate things!"
     ],
     "missedKiller": [
-        " You missed the killer! Give it another shot",
-        " The killer?"
+        " I shouldn't have to do your job for you, but that's not the right killer.",
+        " That's definitely not the right suspect?"
     ],
     "missedWeapon": [
-        " You missed the Weapon! Give it another shot",
-        " Weapon is the most important in this crime investigation! And you haven't thougt about it properly "
+        " That's not the right weapon. Maybe try to investigate some more?",
+        " We can't make an arrest without the right weapon."
     ],
     "missedRoom": [
-        " You missed the Room! Give it another shot",
-        " Room is the most important in this crime investigation! And you haven't thougt about it properly "
+        " How am I supposed to close this case if you don't even know which room the murder happened in?",
+        " That's not where the murder happened. Maybe you should try to investigate some more?"
     ],
     "hasWon": [
-        " seems like you already solved the muder mystery, detective!"
+        " Nobody likes a gloater: You already solved the murder mystery, detective!"
     ],
     "hasFailed": [
-        " seems like you cant accuse anymore, detective!"
+        " You had your shot and you blew it. You're out of the academy!"
     ],
     "outOfGuesses": [
-        " seeme like you dont have any more changes!",
-        " you already failed! better not disturb me"
+        " I'm running out of patience, and you've run out of guesses. Make an accusation, or get off the force.",
+        " That's enough guessing. What do you think happened?"
     ],
     "outOfInvestigataion": [
-        " The inspector is firm: That's more than enough snooping around. What do you think happened?"
+        " That's more than enough snooping around. What do you think happened?"
     ],
     "falseGuess": [
-        " dont trick me! One killer, One Room and One Object",
-        " you can't oversmart me!"
+        " I do things the old fashioned way: one suspect, one weapon, one room.",
+        " Don't try and make things complicated. It's just one suspect, one weapon and one room."
     ],
     "incorrectAccuse": [
-        " Ops! You are out of the game"
+        " That's not what happened, and now I'm going to be in trouble with my superiors. You're off the squad!"
     ],
-    "inclompleteAccuse": [
-        " seems like you missed something in your accusition."
+    "incompleteAccuse": [
+        " You can't cut corners. If you think you've solved this case, you need to tell me who did it, where, and with what."
     ],
     "incorrectInvestigation": [
         "You visit the {{room}}, and find no signs of a struggle. The {{weapon}} is on a table, obviously unused. A maid sits in the corner, crying. After gentle questioning, she admits that she was with {{suspect}} at the time of the murder."
@@ -79,15 +79,17 @@
         "Shattered glass, overturned furniture. This must be where it happened."
     ],
     "rulesLines":[
-        " yesterday at midnight there was a crime commited at the Crimmson villa.",
-        " There are five prime suspects Plum, Mustard, Green, White, Scarlett, and Peacock!", 
-        " According to forensics the crime was commited using Candlestick, Dagger, Lead Pipe, Revolver, Rope, or Spanner.",
-        " There are 9 rooms in the villa: Kitchen, Conservatory, Library, Dinning, Ballroom, Hall, Study, Lounge, Billiard",
-        " You have got 5 chances to guess! I am an optimist so I dont like negation.",
+        " Yesterday at midnight there was a murder at Crimmson villa.",
+        " There are six suspects: Professor Plum, Colonel Mustard, Mr Green, Mrs White, Miss Scarlett, and Mrs Peacock!", 
+        " According to forensics the crime was commited using either a candlestick, a dagger, a lead pipe, a revolver, a rope, or a spanner (we really need to get a better forensics team!).",
+        " There are nine rooms in the villa: the kitchen, the conservatory, the library, the dining room, the ballroom, the hall, the study, the lounge, and the billiard room",
+        " You can investigate up to three rooms to get more information.",
+        " You've got five chances to guess! Tell me who you think did it, in which room and with what weapon.",
+        " When you've solved the case, you need to accuse someone. Make sure you're certain, because you only get one chance!"
         " If you fail you are out! forever..."
     ],
-    "payment": " You finally made it! \nThanks for supporting HOPR. \nClaim your Dai here: ",  
-    "noPayment": " You finally made it! \nThanks for supporting HOPR.",
+    "payment": " You solved the case! \nThanks for supporting HOPR. \nClaim your Dai here: ",  
+    "noPayment": " You solved the case! \nThanks for supporting HOPR.",
     "successInvestigate": [
         " successfull investigation"
     ],
