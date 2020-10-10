@@ -6,6 +6,7 @@ import { TweetMessage, TweetState } from '../../lib/twitter/twitter'
 //@TODO: Isolate these utilities to avoid importing the entire package
 import { convertPubKeyFromB58String, u8aToHex } from '@hoprnet/hopr-utils'
 import { Utils } from '@hoprnet/hopr-core-ethereum'
+import { pubKeyToPeerId } from '@hoprnet/hopr-core/lib/utils'
 import { Networks, HOPR_CHANNELS } from '@hoprnet/hopr-core-ethereum/lib/ethereum/addresses'
 import {
   COVERBOT_DEBUG_MODE,
@@ -22,6 +23,7 @@ import { BotResponses, NodeStateResponses } from './responses'
 import { BalancedHoprNode, HoprNode } from './coverbot'
 import debug from 'debug'
 import Core from '../../lib/hopr/core'
+import BN from 'bn.js'
 
 
 const log = debug('hopr-chatbot:coverbot')
@@ -242,7 +244,16 @@ export class Coverbot implements Bot {
           error(`Trying to send ${NodeStates.onlineNode} message to ${_hoprNodeAddress} failed.`)
         })
 
-        // 2.
+        // 2. Open a payment channel to the hoprNodeAddress
+        const pubkey = await convertPubKeyFromB58String(_hoprNodeAddress)
+        const counterParty = await pubKeyToPeerId(pubkey.marshal())
+        const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(1));
+        this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${channelId}`)
+        .catch(err => {
+          error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`)
+        })
+
+        // 3. Send now a relayed message.
         this._sendMessageFromBot(this.address, ` Relaying package to ${_hoprNodeAddress}`, [_hoprNodeAddress])
         .catch(err => {
           error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`)
