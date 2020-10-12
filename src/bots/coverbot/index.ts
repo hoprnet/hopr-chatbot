@@ -220,7 +220,8 @@ export class Coverbot implements Bot {
       if (_hoprNodeAddress.length === 0) {
         log(`- verificationCycle | No node has been found from our tweet w/content ${tweet.content}`)
         // this.verifiedHoprNodes.delete(hoprNode.id)
-        await this.dumpData()
+        //await this.dumpData()
+        return
       } else {
         this._sendMessageFromBot(_hoprNodeAddress, BotResponses[BotCommands.verify])
         .catch(err => {
@@ -247,8 +248,8 @@ export class Coverbot implements Bot {
         // 2. Open a payment channel to the hoprNodeAddress
         const pubkey = await convertPubKeyFromB58String(_hoprNodeAddress)
         const counterParty = await pubKeyToPeerId(pubkey.marshal())
-        const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(1));
-        this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${channelId}`)
+        const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(RELAY_HOPR_REWARD));
+        this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${u8aToHex(channelId)}`)
         .catch(err => {
           error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`)
         })
@@ -370,7 +371,7 @@ export class Coverbot implements Bot {
 
       await Promise.all([
         this._setEthereumAddressScore(relayerEthereumAddress, newScore),
-        this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
+        //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
       ])
       console.log(`xHOPR tokens sent to ${relayerAddress}`)
       this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.verifiedNode])
@@ -452,6 +453,9 @@ export class Coverbot implements Bot {
             if (score === 0) {
               await this._setEthereumAddressScore(ethAddress, ScoreRewards.verified)
             }
+
+            //@TODO: Review if it makes a sense to write DB here
+            //await this.dumpData()
 
             this._sendMessageFromBot(message.from, NodeStateResponses[xDaiBalanceNodeState](balance))
             .catch(err => {
