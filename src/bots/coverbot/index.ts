@@ -88,7 +88,7 @@ export class Coverbot implements Bot {
     this.chainId = null
     this.network = null
 
-    this.xdaiWeb3 = new Web3(new Web3.providers.HttpProvider(COVERBOT_CHAIN_PROVIDER))
+    this.xdaiWeb3 = new Web3(new Web3.providers.WebsocketProvider(COVERBOT_CHAIN_PROVIDER))
     this.verificationTimeout = setInterval(this._verificationCycle.bind(this), COVERBOT_VERIFICATION_CYCLE_IN_MS)
 
     this.verifiedHoprNodes = new Map<string, HoprNode>()
