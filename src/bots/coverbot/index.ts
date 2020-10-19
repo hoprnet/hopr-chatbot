@@ -160,6 +160,7 @@ export class Coverbot implements Bot {
         COVERBOT_DEBUG_MODE,
         COVERBOT_VERIFICATION_CYCLE_IN_MS,
         COVERBOT_XDAI_THRESHOLD,
+        COVERBOT_TIMESTAMP: this.relayTimestamp
       },
       hoprCoverbotAddress: await this._getEthereumAddressFromHOPRAddress(this.address),
       hoprChannelContract: HOPR_CHANNELS[this.network],
