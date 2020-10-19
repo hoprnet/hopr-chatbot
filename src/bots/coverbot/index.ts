@@ -2,7 +2,7 @@ import { getHOPRNodeAddressFromContent } from '../../utils/utils'
 import Web3 from 'web3'
 import { Bot } from '../bot'
 import { IMessage } from '../../message/message'
-import { TweetMessage, TweetState } from '../../lib/twitter/twitter'
+import { TweetMessage } from '../../lib/twitter/twitter'
 //@TODO: Isolate these utilities to avoid importing the entire package
 import { convertPubKeyFromB58String, u8aToHex } from '@hoprnet/hopr-utils'
 import { Utils } from '@hoprnet/hopr-core-ethereum'
@@ -102,18 +102,18 @@ export class Coverbot implements Bot {
     return ethereumAddress
   }
 
-  private async _getEthereumAddressScore(ethereumAddress: string): Promise<number> {
+  private async _getHoprAddressScore(hoprAddress: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      scoreDbRef.child(ethereumAddress).once('value', (snapshot, error) => {
+      scoreDbRef.child(hoprAddress).once('value', (snapshot, error) => {
         if (error) return reject(error)
         return resolve(snapshot.val() || 0)
       })
     })
   }
 
-  private async _setEthereumAddressScore(ethereumAddress: string, score: number): Promise<void> {
+  private async _setHoprAddressScore(hoprAddress: string, score: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      scoreDbRef.child(ethereumAddress).setWithPriority(score, -score, (error) => {
+      scoreDbRef.child(hoprAddress).setWithPriority(score, -score, (error) => {
         if (error) return reject(error)
         return resolve()
       })
@@ -237,7 +237,7 @@ export class Coverbot implements Bot {
       } else {
         this._sendMessageFromBot(_hoprNodeAddress, BotResponses[BotCommands.verify])
           .catch(err => {
-            error(`Trying to send ${BotCommands.verify} message to ${_hoprNodeAddress} failed.`)
+            error(`Trying to send ${BotCommands.verify} message to ${_hoprNodeAddress} failed.`, err)
           })
         /*
          * We switched from “send and forget” to “send and listen”
@@ -254,7 +254,7 @@ export class Coverbot implements Bot {
         console.log(`Relaying node ${_hoprNodeAddress}, checking in ${RELAY_VERIFICATION_CYCLE_IN_MS}`)
         this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.onlineNode])
           .catch(err => {
-            error(`Trying to send ${NodeStates.onlineNode} message to ${_hoprNodeAddress} failed.`)
+            error(`Trying to send ${NodeStates.onlineNode} message to ${_hoprNodeAddress} failed.`, err)
           })
 
         // 2. Open a payment channel to the hoprNodeAddress
@@ -263,13 +263,13 @@ export class Coverbot implements Bot {
         const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(RELAY_HOPR_REWARD));
         this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${u8aToHex(channelId)}`)
           .catch(err => {
-            error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`)
+            error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`, err)
           })
 
         // 3. Send now a relayed message.
         this._sendMessageFromBot(this.address, ` Relaying package to ${_hoprNodeAddress}`, [_hoprNodeAddress])
           .catch(err => {
-            error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`)
+            error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`, err)
           })
 
         // 3.
@@ -291,7 +291,7 @@ export class Coverbot implements Bot {
             // 4.1.2
             this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
               .catch(err => {
-                error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`)
+                error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`, err)
               })
 
             // 4.1.3
@@ -368,7 +368,7 @@ export class Coverbot implements Bot {
       log(`- handleMessage | Successful Relay: ${relayerAddress}`)
       this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.relayingNodeSucceded])
         .catch(err => {
-          error(`Trying to send ${NodeStates.relayingNodeSucceded} message to ${relayerAddress} failed.`)
+          error(`Trying to send ${NodeStates.relayingNodeSucceded} message to ${relayerAddress} failed.`,err)
         })
 
       // 3.
@@ -377,12 +377,11 @@ export class Coverbot implements Bot {
       this.relayTimeouts.delete(relayerAddress)
 
       // 4.
-      const relayerEthereumAddress = await this._getEthereumAddressFromHOPRAddress(relayerAddress)
-      const score = await this._getEthereumAddressScore(relayerEthereumAddress)
+      const score = await this._getHoprAddressScore(relayerAddress)
       const newScore = score + ScoreRewards.relayed
 
       await Promise.all([
-        this._setEthereumAddressScore(relayerEthereumAddress, newScore),
+        this._setHoprAddressScore(relayerAddress, newScore),
         //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
       ])
       console.log(`xHOPR tokens sent to ${relayerAddress}`)
@@ -407,7 +406,7 @@ export class Coverbot implements Bot {
       // 2.
       this._sendMessageFromBot(message.from, NodeStateResponses[NodeStates.relayingNodeInProgress])
         .catch(err => {
-          error(`Trying to send ${NodeStates.relayingNodeInProgress} message to ${message.from} failed.`)
+          error(`Trying to send ${NodeStates.relayingNodeInProgress} message to ${message.from} failed.`,err)
         })
 
       // 3.
@@ -418,7 +417,7 @@ export class Coverbot implements Bot {
     if (message.text.match(/https:\/\/twitter.com.*?$/i)) {
       this._sendMessageFromBot(message.from, NodeStateResponses[NodeStates.tweetVerificationInProgress])
         .catch(err => {
-          error(`Trying to send ${NodeStates.tweetVerificationFailed} message to ${message.from} failed.`)
+          error(`Trying to send ${NodeStates.tweetVerificationFailed} message to ${message.from} failed.`, err)
         })
         ;[tweet, nodeState] = await this._verifyTweet(message)
     } else {
@@ -429,26 +428,26 @@ export class Coverbot implements Bot {
       case NodeStates.newUnverifiedNode:
         this._sendMessageFromBot(message.from, NodeStateResponses[nodeState])
           .catch(err => {
-            error(`Trying to send ${nodeState} message to ${message.from} failed.`)
+            error(`Trying to send ${nodeState} message to ${message.from} failed.`, err)
           })
         break
       case NodeStates.tweetVerificationFailed:
         this._sendMessageFromBot(message.from, NodeStateResponses[nodeState](this.tweets.get(message.from).status))
           .catch(err => {
-            error(`Trying to send ${nodeState} message to ${message.from} failed.`)
+            error(`Trying to send ${nodeState} message to ${message.from} failed.`, err)
           })
         break
       case NodeStates.tweetVerificationSucceeded:
         this._sendMessageFromBot(message.from, NodeStateResponses[nodeState])
           .catch(err => {
-            error(`Trying to send ${nodeState} message to ${message.from} failed.`)
+            error(`Trying to send ${nodeState} message to ${message.from} failed.`, err)
           })
         const [balance, xDaiBalanceNodeState] = await this._verifyBalance(message)
         switch (xDaiBalanceNodeState) {
           case NodeStates.xdaiBalanceFailed:
             this._sendMessageFromBot(message.from, NodeStateResponses[xDaiBalanceNodeState](balance))
               .catch(err => {
-                error(`Trying to send ${xDaiBalanceNodeState} message to ${message.from} failed.`)
+                error(`Trying to send ${xDaiBalanceNodeState} message to ${message.from} failed.`, err)
               })
             break
           case NodeStates.xdaiBalanceSucceeded: {
@@ -461,9 +460,9 @@ export class Coverbot implements Bot {
               address: ethAddress,
             })
 
-            const score = await this._getEthereumAddressScore(ethAddress)
+            const score = await this._getHoprAddressScore(message.from)
             if (score === 0) {
-              await this._setEthereumAddressScore(ethAddress, ScoreRewards.verified)
+              await this._setHoprAddressScore(message.from, ScoreRewards.verified)
             }
 
             //@TODO: Review if it makes a sense to write DB here
@@ -471,20 +470,20 @@ export class Coverbot implements Bot {
 
             this._sendMessageFromBot(message.from, NodeStateResponses[xDaiBalanceNodeState](balance))
               .catch(err => {
-                error(`Trying to send ${xDaiBalanceNodeState} message to ${message.from} failed.`)
+                error(`Trying to send ${xDaiBalanceNodeState} message to ${message.from} failed.`, err)
               })
             break
           }
         }
         this._sendMessageFromBot(message.from, BotResponses[BotCommands.status](xDaiBalanceNodeState))
           .catch(err => {
-            error(`Trying to send ${BotCommands.status} message to ${message.from} failed.`)
+            error(`Trying to send ${BotCommands.status} message to ${message.from} failed.`, err)
           })
         break
     }
     this._sendMessageFromBot(message.from, BotResponses[BotCommands.status](nodeState))
       .catch(err => {
-        error(`Trying to send ${BotCommands.status} message to ${message.from} failed.`)
+        error(`Trying to send ${BotCommands.status} message to ${message.from} failed.`, err)
       })
   }
 }
