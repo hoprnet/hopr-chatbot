@@ -160,7 +160,7 @@ export class Coverbot implements Bot {
         COVERBOT_DEBUG_MODE,
         COVERBOT_VERIFICATION_CYCLE_IN_MS,
         COVERBOT_XDAI_THRESHOLD,
-        COVERBOT_TIMESTAMP: this.relayTimestamp
+        COVERBOT_TIMESTAMP
       },
       hoprCoverbotAddress: await this._getEthereumAddressFromHOPRAddress(this.address),
       hoprChannelContract: HOPR_CHANNELS[this.network],
@@ -332,7 +332,7 @@ export class Coverbot implements Bot {
 
     await tweet.fetch({ mock: COVERBOT_DEBUG_MODE })
 
-    if (tweet.hasTag('hoprnetwork')) {
+    if (tweet.hasTag('basodino')) {
       tweet.status.hasTag = true
     }
     if (tweet.hasMention('hoprnet')) {
