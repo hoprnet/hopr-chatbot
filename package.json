@@ -1,6 +1,6 @@
 {
   "name": "@hoprnet/chat-bot",
-  "version": "1.17.11",
+  "version": "1.17.14",
   "description": "",
   "author": "",
   "private": true,
@@ -24,10 +24,10 @@
     "yarn": "1"
   },
   "dependencies": {
-    "@hoprnet/hopr-core": "^1.17.11",
-    "@hoprnet/hopr-core-connector-interface": "^1.17.11",
-    "@hoprnet/hopr-core-ethereum": "^1.17.11",
-    "@hoprnet/hopr-utils": "^1.17.11",
+    "@hoprnet/hopr-core": "^1.17.14",
+    "@hoprnet/hopr-core-connector-interface": "^1.17.14",
+    "@hoprnet/hopr-core-ethereum": "^1.17.14",
+    "@hoprnet/hopr-utils": "^1.17.14",
     "@hoprnet/twitter-api-client": "^0.1.8",
     "@linkdrop/sdk": "1.1.6",
     "bn.js": "^5.1.3",

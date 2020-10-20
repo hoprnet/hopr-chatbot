@@ -47,7 +47,7 @@ export default class Core {
 
   constructor(
     options: HoprOptions = {
-      provider: process.env.HOPR_CHATBOT_PROVIDER || 'wss://xdai.poanetwork.dev/wss',
+      provider: process.env.HOPR_CHATBOT_PROVIDER || 'wss://ws-mainnet.matic.network',
       network: process.env.HOPR_CHATBOT_NETWORK || 'ETHEREUM',
       debug: Boolean(process.env.HOPR_CHABOT_DEBUG) || false,
       password: process.env.HOPR_CHATBOT_PASSWORD || 'switzerland',
