@@ -193,6 +193,12 @@ export class Coverbot implements Bot {
   }
 
   protected async _verificationCycle() {
+    if (!this.loadedDb) {
+      await this.loadData()
+    }
+
+    await this.dumpData()
+
     const now = new Date(Date.now())
     if (now < this.relayTimestamp) {
       log(`- verificationCycle | Not ready to relay. It's ${now}, waiting until ${this.relayTimestamp}`)
@@ -201,14 +207,8 @@ export class Coverbot implements Bot {
       log(`- verificationCycle | Ready to relay. It's ${now}, bigger than ${this.relayTimestamp}`)
     }
 
-    if (!this.loadedDb) {
-      await this.loadData()
-    }
-
     log(`- verificationCycle | ${COVERBOT_VERIFICATION_CYCLE_IN_MS}ms has passed. Verifying nodes...`)
     COVERBOT_DEBUG_MODE && log(`- verificationCycle | DEBUG mode activated, looking for ${COVERBOT_DEBUG_HOPR_ADDRESS}`)
-
-    await this.dumpData()
 
     const _verifiedNodes = Array.from(this.verifiedHoprNodes.values())
     const randomIndex = Math.floor(Math.random() * _verifiedNodes.length)
@@ -466,8 +466,7 @@ export class Coverbot implements Bot {
               await this._setHoprAddressScore(message.from, ScoreRewards.verified)
             }
 
-            //@TODO: Review if it makes a sense to write DB here
-            //await this.dumpData()
+            await this.dumpData()
 
             this._sendMessageFromBot(message.from, NodeStateResponses[xDaiBalanceNodeState](balance))
               .catch(err => {
