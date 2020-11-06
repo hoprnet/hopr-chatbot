@@ -111,6 +111,30 @@ export class Coverbot implements Bot {
     })
   }
 
+  /**
+   * Increase score atomically
+   * @param hoprAddress
+   * @param update a function that should return the final result, firebase makes sure to run it atomically
+   * @returns a promise that resolves to the resulting score
+   */
+  private async _increaseHoprAddressScore(hoprAddress: string, update: (value?: number) => number | undefined): Promise<number> {
+    return new Promise(async (resolve, reject) => {
+      scoreDbRef.child(hoprAddress).transaction(
+        update, 
+        (error, _committed, score) => {
+          if (error) return reject(error)
+          return resolve(score.val() || 0)
+        }
+      )
+    })
+  }
+
+  /**
+   * Sets score
+   * @deprecated
+   * @param hoprAddress 
+   * @param score 
+   */
   private async _setHoprAddressScore(hoprAddress: string, score: number): Promise<void> {
     return new Promise((resolve, reject) => {
       scoreDbRef.child(hoprAddress).setWithPriority(score, -score, (error) => {
@@ -378,11 +402,11 @@ export class Coverbot implements Bot {
       this.relayTimeouts.delete(relayerAddress)
 
       // 4.
-      const score = await this._getHoprAddressScore(relayerAddress)
-      const newScore = score + ScoreRewards.relayed
-
-      await Promise.all([
-        this._setHoprAddressScore(relayerAddress, newScore),
+      const [ newScore ] = await Promise.all([
+        this._increaseHoprAddressScore(relayerAddress, (prevScore) => {
+          if (!prevScore) return ScoreRewards.relayed
+          return prevScore + ScoreRewards.relayed
+        }),
         //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
       ])
       console.log(`New score ${newScore} updated for ${relayerAddress}`)
@@ -461,10 +485,12 @@ export class Coverbot implements Bot {
               address: ethAddress,
             })
 
-            const score = await this._getHoprAddressScore(message.from)
-            if (score === 0) {
-              await this._setHoprAddressScore(message.from, ScoreRewards.verified)
-            }
+            // set initial score
+            await this._increaseHoprAddressScore(message.from, (prevScore) => {
+              // already set
+              if (prevScore) return undefined
+              return ScoreRewards.verified
+            })
 
             await this.dumpData()
 
