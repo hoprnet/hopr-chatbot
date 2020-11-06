@@ -32,8 +32,9 @@ const log = debug('hopr-chatbot:coverbot')
 const error = debug('hopr-chatbot:coverbot:error')
 const { fromWei } = Web3.utils
 
-const scoreDbRef = db.ref(`/${HOPR_ENVIRONMENT}/score`)
 const stateDbRef = db.ref(`/${HOPR_ENVIRONMENT}/state`)
+const scoreDbRef = db.ref(`/${HOPR_ENVIRONMENT}/score`)
+const botsDbRef = db.ref(`/${HOPR_ENVIRONMENT}/bots`)
 
 // 'COVERBOT_RESTORE_SCORE_FROM' must be a valid hopr environment
 if (COVERBOT_RESTORE_SCORE_FROM && !HOPR_ENVIRONMENTS.includes(COVERBOT_RESTORE_SCORE_FROM)) {
@@ -62,7 +63,7 @@ export class Coverbot implements Bot {
   ethereumAddress: string
   chainId: number
   network: Networks
-  loadedDb: boolean
+  initialized: boolean
 
   constructor({ node, hoprBalance, balance }: BalancedHoprNode, nativeAddress: string, address: string, timestamp: Date, twitterTimestamp: Date) {
     this.node = node
@@ -75,7 +76,7 @@ export class Coverbot implements Bot {
     this.tweets = new Map<string, TweetMessage>()
     this.twitterTimestamp = twitterTimestamp
     this.botName = '💰 Coverbot'
-    this.loadedDb = false
+    this.initialized = false
     this.relayTimestamp = COVERBOT_TIMESTAMP ? new Date(+COVERBOT_TIMESTAMP * 1000) : new Date(Date.now())
 
     log(`- constructor | ${this.botName} has been added`)
@@ -100,7 +101,7 @@ export class Coverbot implements Bot {
 
     this.verifiedHoprNodes = new Map<string, HoprNode>()
     this.relayTimeouts = new Map<string, NodeJS.Timeout>()
-    this.loadData()
+    this.initialize()
   }
 
   private async _getEthereumAddressFromHOPRAddress(hoprAddress: string): Promise<string> {
@@ -151,69 +152,82 @@ export class Coverbot implements Bot {
     })
   }
 
-  private async loadData(): Promise<void> {
-    log(`- loadData | Loading data from our Database`)
-
-    // initialize state
-    await new Promise<void>((resolve, reject) => {
-      log(`- loadData | Loading state`)
+  private async _loadState(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      log(`- loadState | Loading state`)
 
       stateDbRef.once('value', (snapshot, error) => {
         if (error) return reject(error)
         if (!snapshot.exists()) {
-          log(`- loadData | Database hasn’t been created`)
+          log(`- loadState | Database hasn’t been created`)
           return resolve()
         }
         const state = snapshot.val()
         const connected = state.connected || []
-        log(`- loadData | Loaded ${connected.length} nodes from our Database`)
+        log(`- loadState | Loaded ${connected.length} nodes from our Database`)
         this.verifiedHoprNodes = new Map<string, HoprNode>()
         connected.forEach((n) => this.verifiedHoprNodes.set(n.id, n))
-        log(`- loadData | Updated ${Array.from(this.verifiedHoprNodes.values()).length} verified nodes in memory`)
+        log(`- loadState | Updated ${Array.from(this.verifiedHoprNodes.values()).length} verified nodes in memory`)
         return resolve()
       })
     })
+  }
 
-    // restore scores only if 'COVERBOT_RESTORE_SCORE_FROM' is provided
-    if (COVERBOT_RESTORE_SCORE_FROM) {
-      log(`- loadData | Restoring scores from '${COVERBOT_RESTORE_SCORE_FROM}' if our scores don't exist`)
+  private async _initializeScores(): Promise<void> {
+    if (!COVERBOT_RESTORE_SCORE_FROM) return
+    log(`- initializeScores | Restoring scores from '${COVERBOT_RESTORE_SCORE_FROM}' if our scores don't exist`)
 
-      await new Promise<void>((resolve, reject) => {
-        log(`- loadData | Loading scores`)
-  
-        scoreDbRef.once("value", async (snapshot, error) => {
-          try {
-            if (error) return reject(error)
-            if (snapshot.exists()) {
-              log(`- loadData | Scores found, will not restore scores`)
-              return resolve()
-            }
-  
-            log(`- loadData | Scores not found, restoring scores from ${COVERBOT_RESTORE_SCORE_FROM}`)
-            const previousScores = await db.ref(`/${COVERBOT_RESTORE_SCORE_FROM}/score`).once("value")
-            if (!previousScores.exists()) {
-              log(`- loadData | No scores found in ${COVERBOT_RESTORE_SCORE_FROM}`)
-              return resolve()
-            }
-  
-            // reset scores to '$ScoreRewards.verified'
-            const scores = {}
-            for (const id in (previousScores.val() || {})) {
-              scores[id] = ScoreRewards.verified
-            }
+    return new Promise<void>((resolve, reject) => {
+      log(`- initializeScores | Loading scores`)
 
-            await scoreDbRef.set(scores)
-            log(`- loadData | Added ${Object.values(scores).length} scores with value ${ScoreRewards.verified}`)
-
+      scoreDbRef.once("value", async (snapshot, error) => {
+        try {
+          if (error) return reject(error)
+          if (snapshot.exists()) {
+            log(`- initializeScores | Scores found, will not restore scores`)
             return resolve()
-          } catch (error) {
-            return reject(error)
           }
-        })
-      })
-    }
 
-    this.loadedDb = true
+          log(`- initializeScores | Scores not found, restoring scores from ${COVERBOT_RESTORE_SCORE_FROM}`)
+          const previousScores = await db.ref(`/${COVERBOT_RESTORE_SCORE_FROM}/score`).once("value")
+          if (!previousScores.exists()) {
+            log(`- initializeScores | No scores found in ${COVERBOT_RESTORE_SCORE_FROM}`)
+            return resolve()
+          }
+
+          // reset scores to '$ScoreRewards.verified'
+          const scores = {}
+          for (const id in (previousScores.val() || {})) {
+            scores[id] = ScoreRewards.verified
+          }
+
+          await scoreDbRef.set(scores)
+          log(`- initializeScores | Added ${Object.values(scores).length} scores with value ${ScoreRewards.verified}`)
+
+          return resolve()
+        } catch (error) {
+          return reject(error)
+        }
+      })
+    })
+  }
+
+  private async _saveBotId(): Promise<void> {
+    log(`- setBotId | Storing bot ID`)
+    await botsDbRef.child(this.address).set(Math.floor(Math.random() * 1e8))
+    log(`- setBotId | Stored bot ID`)
+  }
+
+  private async initialize(): Promise<void> {
+    log(`- initialize | Initializing database data`)
+
+    await Promise.all([
+      this._loadState(),
+      this._initializeScores(),
+      this._saveBotId(),
+    ])
+
+    this.initialized = true
   }
 
   protected async dumpData() {
@@ -226,7 +240,7 @@ export class Coverbot implements Bot {
     }
 
     const connectedNodes = this.node.listConnectedPeers()
-    log(`- loadData | Detected ${connectedNodes} in the network w/bootstrap servers ${this.node.getBootstrapServers()}`)
+    log(`- dumpData | Detected ${connectedNodes} in the network w/bootstrap servers ${this.node.getBootstrapServers()}`)
 
     const state = {
       connectedNodes,
@@ -268,8 +282,8 @@ export class Coverbot implements Bot {
   }
 
   protected async _verificationCycle() {
-    if (!this.loadedDb) {
-      await this.loadData()
+    if (!this.initialized) {
+      await this.initialize()
     }
 
     await this.dumpData()
