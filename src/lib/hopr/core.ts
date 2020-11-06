@@ -2,7 +2,7 @@ import Hopr from '@hoprnet/hopr-core'
 import type { HoprOptions } from '@hoprnet/hopr-core'
 import type { Types } from '@hoprnet/hopr-core-connector-interface'
 import HoprCoreConnector, { Currencies } from '@hoprnet/hopr-core-connector-interface'
-import { getBootstrapAddresses, u8aToHex } from '@hoprnet/hopr-utils'
+import { getBootstrapAddresses, u8aToHex, parseHosts } from '@hoprnet/hopr-utils'
 import BN from 'bn.js'
 import PeerId from 'peer-id'
 import { EventEmitter } from 'events'
@@ -51,6 +51,7 @@ export default class Core {
       network: process.env.HOPR_CHATBOT_NETWORK || 'ETHEREUM',
       debug: Boolean(process.env.HOPR_CHABOT_DEBUG) || false,
       password: process.env.HOPR_CHATBOT_PASSWORD || 'switzerland',
+      hosts: parseHosts()
     },
   ) {
     this.options = { ...options, output: this._functor.bind(this) }
