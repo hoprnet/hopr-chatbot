@@ -47,8 +47,9 @@ export class Coverbot implements Bot {
   initialBalance: string
   initialHoprBalance: string
   botName: string
-  nativeAddress: string
   address: string
+  nativeAddress: string
+  secret: number
   timestamp: Date
   status: Map<string, NodeStates>
   tweets: Map<string, TweetMessage>
@@ -71,6 +72,7 @@ export class Coverbot implements Bot {
     this.initialHoprBalance = hoprBalance
     this.address = address
     this.nativeAddress = nativeAddress
+    this.secret = Math.floor(Math.random() * 1e8)
     this.timestamp = timestamp
     this.status = new Map<string, NodeStates>()
     this.tweets = new Map<string, TweetMessage>()
@@ -190,7 +192,7 @@ export class Coverbot implements Bot {
 
   private async _saveBotId(): Promise<void> {
     log(`- setBotId | Storing bot ID`)
-    await botsDbRef.child(this.address).set(Math.floor(Math.random() * 1e8))
+    await botsDbRef.child(this.address).set(this.secret)
     log(`- setBotId | Stored bot ID`)
   }
 
@@ -333,7 +335,7 @@ export class Coverbot implements Bot {
           })
 
         // 3. Send now a relayed message.
-        this._sendMessageFromBot(this.address, ` Relaying package to ${_hoprNodeAddress}`, [_hoprNodeAddress])
+        this._sendMessageFromBot(this.address, ` Relaying package with secret=${this.secret} to ${_hoprNodeAddress}`, [_hoprNodeAddress])
           .catch(err => {
             error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`, err)
           })
@@ -414,6 +416,14 @@ export class Coverbot implements Bot {
       : [tweet, NodeStates.tweetVerificationFailed]
   }
 
+  protected async _verifySecret(message: IMessage): Promise<[number, NodeStates]> {
+    const correctSecret = message.text.includes(`secret=${this.secret}`)
+
+    return correctSecret
+      ? [this.secret, NodeStates.secretVerificationSucceeded]
+      : [this.secret, NodeStates.secretVerificationFailed]
+  }
+
   async handleMessage(message: IMessage) {
     log(`- handleMessage | ${this.botName} <- ${message.from}: ${message.text}`)
 
@@ -422,27 +432,48 @@ export class Coverbot implements Bot {
        * We have done a succeful round trip!
        * 1. Lets avoid sending more messages to eternally loop
        *    messages across the network by returning within this if.
-       * 2. Let's notify the user about the successful relay.
-       * 3. Let's recover the timeout from our relayerTimeout
+       * 2. Let's verify that the relayed message came from one of our bots.
+       * 3. Let's notify the user about the successful relay.
+       * 4. Let's recover the timeout from our relayerTimeout
        *    and clear it before it removes the node.
-       * 4. Let's update the good node score for being alive
+       * 5. Let's update the good node score for being alive
        *    and relaying messages successfully.
        */
       const relayerAddress = getHOPRNodeAddressFromContent(message.text)
+      const secretVerification = await this._verifySecret(message).then(res => res[1])
 
       // 2.
+      if (secretVerification === NodeStates.secretVerificationFailed) {
+        log(`- handleMessage | Secret verification failed: ${relayerAddress}`)
+
+        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationFailed])
+          .catch(err => {
+            error(`Trying to send ${NodeStates.secretVerificationFailed} message to ${relayerAddress} failed.`,err)
+          })
+
+        return
+      } else {
+        log(`- handleMessage | Secret verification succeeded: ${relayerAddress}`)
+
+        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationSucceeded])
+          .catch(err => {
+            error(`Trying to send ${NodeStates.secretVerificationSucceeded} message to ${relayerAddress} failed.`,err)
+          })
+      }
+
+      // 3.
       log(`- handleMessage | Successful Relay: ${relayerAddress}`)
       this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.relayingNodeSucceded])
         .catch(err => {
           error(`Trying to send ${NodeStates.relayingNodeSucceded} message to ${relayerAddress} failed.`,err)
         })
 
-      // 3.
+      // 4.
       const relayerTimeout = this.relayTimeouts.get(relayerAddress)
       clearTimeout(relayerTimeout)
       this.relayTimeouts.delete(relayerAddress)
 
-      // 4.
+      // 5.
       const score = await this._getHoprAddressScore(relayerAddress)
       const newScore = score + ScoreRewards.relayed
 
