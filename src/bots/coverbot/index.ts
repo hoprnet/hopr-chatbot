@@ -16,10 +16,11 @@ import {
   HOPR_ENVIRONMENT,
   COVERBOT_DEBUG_HOPR_ADDRESS,
   COVERBOT_TIMESTAMP,
+  COVERBOT_RESTORE_SCORE_FROM
 } from '../../utils/env'
 import db from './db'
 import { BotCommands, NodeStates, ScoreRewards } from './state'
-import { RELAY_VERIFICATION_CYCLE_IN_MS, RELAY_HOPR_REWARD } from './constants'
+import { RELAY_VERIFICATION_CYCLE_IN_MS, RELAY_HOPR_REWARD, HOPR_ENVIRONMENTS } from './constants'
 import { BotResponses, NodeStateResponses } from './responses'
 import { BalancedHoprNode, HoprNode } from './coverbot'
 import debug from 'debug'
@@ -33,6 +34,12 @@ const { fromWei } = Web3.utils
 
 const scoreDbRef = db.ref(`/${HOPR_ENVIRONMENT}/score`)
 const stateDbRef = db.ref(`/${HOPR_ENVIRONMENT}/state`)
+
+// 'COVERBOT_RESTORE_SCORE_FROM' must be a valid hopr environment
+if (COVERBOT_RESTORE_SCORE_FROM && !HOPR_ENVIRONMENTS.includes(COVERBOT_RESTORE_SCORE_FROM)) {
+  log(`- validate | provided 'COVERBOT_RESTORE_SCORE_FROM' = '${COVERBOT_RESTORE_SCORE_FROM}' is not a valid hopr environment`)
+  throw Error("Invalid COVERBOT_RESTORE_SCORE_FROM")
+}
 
 export class Coverbot implements Bot {
   node: Core
@@ -146,7 +153,11 @@ export class Coverbot implements Bot {
 
   private async loadData(): Promise<void> {
     log(`- loadData | Loading data from our Database`)
-    return new Promise((resolve, reject) => {
+
+    // initialize state
+    await new Promise<void>((resolve, reject) => {
+      log(`- loadData | Loading state`)
+
       stateDbRef.once('value', (snapshot, error) => {
         if (error) return reject(error)
         if (!snapshot.exists()) {
@@ -159,10 +170,50 @@ export class Coverbot implements Bot {
         this.verifiedHoprNodes = new Map<string, HoprNode>()
         connected.forEach((n) => this.verifiedHoprNodes.set(n.id, n))
         log(`- loadData | Updated ${Array.from(this.verifiedHoprNodes.values()).length} verified nodes in memory`)
-        this.loadedDb = true
         return resolve()
       })
     })
+
+    // restore scores only if 'COVERBOT_RESTORE_SCORE_FROM' is provided
+    if (COVERBOT_RESTORE_SCORE_FROM) {
+      log(`- loadData | Restoring scores from '${COVERBOT_RESTORE_SCORE_FROM}' if our scores don't exist`)
+
+      await new Promise<void>((resolve, reject) => {
+        log(`- loadData | Loading scores`)
+  
+        scoreDbRef.once("value", async (snapshot, error) => {
+          try {
+            if (error) return reject(error)
+            if (snapshot.exists()) {
+              log(`- loadData | Scores found, will not restore scores`)
+              return resolve()
+            }
+  
+            log(`- loadData | Scores not found, restoring scores from ${COVERBOT_RESTORE_SCORE_FROM}`)
+            const previousScores = await db.ref(`/${COVERBOT_RESTORE_SCORE_FROM}/score`).once("value")
+            if (!previousScores.exists()) {
+              log(`- loadData | No scores found in ${COVERBOT_RESTORE_SCORE_FROM}`)
+              return resolve()
+            }
+  
+            // reset scores to '$ScoreRewards.verified'
+            const scores = {}
+            for (const id in (previousScores.val() || {})) {
+              scores[id] = ScoreRewards.verified
+            }
+
+            await scoreDbRef.set(scores)
+            log(`- loadData | Added ${Object.values(scores).length} scores with value ${ScoreRewards.verified}`)
+
+            return resolve()
+          } catch (error) {
+            return reject(error)
+          }
+        })
+      })
+    }
+
+    this.loadedDb = true
   }
 
   protected async dumpData() {
