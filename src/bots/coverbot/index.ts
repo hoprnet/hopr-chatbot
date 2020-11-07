@@ -421,6 +421,7 @@ export class Coverbot implements Bot {
 
             if (!nextBot) {
               // There are no other bots to help us, we default to our normal path.
+              log(`- verificationCycle | Timeout :: No bots to ask for help, we’ll just stop here.`)
 
               // 4.1.2
               this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
@@ -437,6 +438,7 @@ export class Coverbot implements Bot {
 
             } else {
               // There are at least one additional bot we can ask for help.
+              log(`- verificationCycle | Timeout :: A brave bot ${nextBot} is here to help us.`)
 
               // Let's notify the user that we failed, but other bot might not.
               this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailedButWillTryWithOtherBot])
