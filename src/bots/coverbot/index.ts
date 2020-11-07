@@ -16,7 +16,8 @@ import {
   HOPR_ENVIRONMENT,
   COVERBOT_DEBUG_HOPR_ADDRESS,
   COVERBOT_TIMESTAMP,
-  COVERBOT_RESTORE_SCORE_FROM
+  COVERBOT_RESTORE_SCORE_FROM,
+  COVERBOT_SUPPORT_MODE
 } from '../../utils/env'
 import db from './db'
 import { BotCommands, NodeStates, ScoreRewards } from './state'
@@ -90,6 +91,7 @@ export class Coverbot implements Bot {
     log(`- constructor | 💰 Native Balance: ${this.initialBalance}`)
     log(`- constructor | 💵 HOPR Balance: ${this.initialHoprBalance}`)
     log(`- constructor | 🐛 Debug Mode: ${COVERBOT_DEBUG_MODE}`)
+    log(`- constructor | 💊 Support Mode: ${COVERBOT_SUPPORT_MODE}`)
     log(`- constructor | 👀 Verification Cycle: ${COVERBOT_VERIFICATION_CYCLE_IN_MS}`)
     log(`- constructor | 🔍 Relaying Cycle: ${RELAY_VERIFICATION_CYCLE_IN_MS}`)
     log(`- constructor | 🗓 Relaying Starts at: ${this.relayTimestamp}`)
@@ -239,6 +241,11 @@ export class Coverbot implements Bot {
       this.chainId = await Utils.getChainId(this.xdaiWeb3)
       this.network = Utils.getNetworkName(this.chainId) as Networks
       this.ethereumAddress = await this._getEthereumAddressFromHOPRAddress(this.address)
+    }
+
+    if (COVERBOT_SUPPORT_MODE) {
+      log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)  
+      return;
     }
 
     const connectedNodes = this.node.listConnectedPeers()
