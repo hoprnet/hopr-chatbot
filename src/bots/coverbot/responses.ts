@@ -71,6 +71,13 @@ export const NodeStateResponses = {
   
       Thank you for participating in our incentivized network!
     `,
+    [NodeStates.relayingNodeFailedButWillTryWithOtherBot]: `\n
+      Relaying failed. I can reach you, but you can’t reach me...
+
+      This time though, I’ll try and use other bots to see if they can reach you.
+
+      Might luck be on their favour.
+    `,
     [NodeStates.relayingNodeFailed]: `\n
       Relaying failed. I can reach you, but you can’t reach me...
       

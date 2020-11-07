@@ -21,9 +21,9 @@ import {
 } from '../../utils/env'
 import db from './db'
 import { BotCommands, NodeStates, ScoreRewards } from './state'
-import { RELAY_VERIFICATION_CYCLE_IN_MS, RELAY_HOPR_REWARD, HOPR_ENVIRONMENTS } from './constants'
+import { RELAY_VERIFICATION_CYCLE_IN_MS, RELAY_HOPR_REWARD, HOPR_ENVIRONMENTS, AMOUNT_OF_IDENTIFIABLE_LETTERS } from './constants'
 import { BotResponses, NodeStateResponses } from './responses'
-import { BalancedHoprNode, HoprNode } from './coverbot'
+import { BalancedHoprNode, HoprNode, CoverbotSecret } from './coverbot'
 import debug from 'debug'
 import Core from '../../lib/hopr/core'
 import BN from 'bn.js'
@@ -56,6 +56,7 @@ export class Coverbot implements Bot {
   tweets: Map<string, TweetMessage>
   twitterTimestamp: Date
   relayTimestamp: Date
+  bots: CoverbotSecret
 
   verifiedHoprNodes: Map<string, HoprNode>
   relayTimeouts: Map<string, NodeJS.Timeout>
@@ -123,6 +124,19 @@ export class Coverbot implements Bot {
     })
   }
 
+  private async _loadBotsWithSecrets(): Promise<CoverbotSecret> {
+    log(`- _getBotAddressesWithSecrets | Obtaining coverbot addresses`)
+    return new Promise((resolve, reject) => {
+      botsDbRef.once('value', (snapshot, error) => {
+        if (error) return reject(error)
+        const bots = snapshot.val()
+        log(`- _getBotAddressesWithSecrets | Obtained ${JSON.stringify(bots)} addresses and secrets.`)
+        this.bots = bots;
+        return resolve(bots || {})
+      })
+    })
+  }
+
   /**
    * Increase score atomically
    * @param hoprAddress
@@ -132,7 +146,7 @@ export class Coverbot implements Bot {
   private async _increaseHoprAddressScore(hoprAddress: string, update: (value?: number) => number | undefined): Promise<number> {
     return new Promise(async (resolve, reject) => {
       scoreDbRef.child(hoprAddress).transaction(
-        update, 
+        update,
         (error, _committed, score) => {
           if (error) return reject(error)
           return resolve(score.val() || 0)
@@ -244,7 +258,7 @@ export class Coverbot implements Bot {
     }
 
     if (COVERBOT_SUPPORT_MODE) {
-      log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)  
+      log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)
       return;
     }
 
@@ -308,6 +322,10 @@ export class Coverbot implements Bot {
     log(`- verificationCycle | ${COVERBOT_VERIFICATION_CYCLE_IN_MS}ms has passed. Verifying nodes...`)
     COVERBOT_DEBUG_MODE && log(`- verificationCycle | DEBUG mode activated, looking for ${COVERBOT_DEBUG_HOPR_ADDRESS}`)
 
+    log(`- verificationCycle | Reloading lists of coverbots`)
+    await this._loadBotsWithSecrets()
+    log(`- verificationCycle | Coverbots lists completed, currently ${Object.entries(this.bots).length} bots in the system.`)
+
     const _verifiedNodes = Array.from(this.verifiedHoprNodes.values())
     const randomIndex = Math.floor(Math.random() * _verifiedNodes.length)
     const hoprNode: HoprNode = _verifiedNodes[randomIndex]
@@ -344,9 +362,10 @@ export class Coverbot implements Bot {
          * 2. We use them as a relayer, expecting to get our message later.
          * 3. We save a timeout, to fail the node if the relayed package doesnt come back.
          * 4. We wait RELAY_VERIFICATION_CYCLE_IN_MS seconds for the relay to get back.
-         *    4.1 If we don't get the message back before RELAY_VERIFICATION_CYCLE_IN_MS,
-         *        then we remove the node from the verification table and redump data.
-         *    4.2 If we DO get the message back, then we go and execute the payout function.
+         *    A) If we don't get the message back before RELAY_VERIFICATION_CYCLE_IN_MS,
+         *
+         *    B) If we DO get the message back, we’ll get it in the handler function and
+         *    processed there as a successful relay.
          */
 
         // 1.
@@ -377,28 +396,60 @@ export class Coverbot implements Bot {
           setTimeout(() => {
             // 4.1
             /*
-             * The timeout passed, and we didn‘t get the message back.
-             * 4.1.1 Internally log that this is the case.
-             * 4.1.2 Let the node that we couldn't get our response back in time.
-             * 4.1.3 Remove from timeout so they can try again somehow.
+             * The timeout passed, and we didn‘t get the message back, so now
+             * 4.A.1 We identify how many coverbots (other than us) can help us to relay.
+             * 4.A.2 We create an array of these bots and store that value internally.
+             * 4.A.3 We pick another coverbot from our bots array to try and relay.
+             * 4.A.4 We send that coverbot both the other bots available and help request.
+             * NB: UPDATED BY JA FOR Basodino v2 [4.1.1 Internally log that this is the case.]
+             * NB: UPDATED BY JA FOR Basodino v2 [4.1.2 Let the node that we couldn't get our response back in time.]
+             * NB: UPDATED BY JA FOR Basodino v2 [4.1.3 Remove from timeout so they can try again somehow.]
              * NB: DELETED BY PB AFTER CHAT 10/9 [4.1.4 Remove from our verified node and write to the database]
              */
 
-            // 4.1.1
-            console.log(`No response from ${_hoprNodeAddress}.`) // Removing as valid node.`)
+            // 4.A.1
+            log(`- verificationCycle | Timeout :: No response from ${_hoprNodeAddress}, will ask another coverbot to give a try.`)
+            const botsAvailable = Object.keys(this.bots)
+            const otherBots = botsAvailable.filter(bot => bot !== this.address)
+            log(`- verificationCycle | Timeout :: Currently there are at least ${otherBots.length} other bots willing to help.`)
 
-            // 4.1.2
-            this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
-              .catch(err => {
-                error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`, err)
-              })
+            // 4.A.2
+            const otherBotsShortVersion = otherBots.map(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
 
-            // 4.1.3
-            this.relayTimeouts.delete(_hoprNodeAddress)
+            // 4.A.3
+            const nextBot = otherBots[0]
 
-            // 4.1.4
-            //this.verifiedHoprNodes.delete(_hoprNodeAddress)
-            //this.dumpData()
+            if (!nextBot) {
+              // There are no other bots to help us, we default to our normal path.
+
+              // 4.1.2
+              this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
+                .catch(err => {
+                  error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`, err)
+                })
+
+              // 4.1.3
+              this.relayTimeouts.delete(_hoprNodeAddress)
+
+              // 4.1.4
+              //this.verifiedHoprNodes.delete(_hoprNodeAddress)
+              //this.dumpData()
+
+            } else {
+              // There are at least one additional bot we can ask for help.
+
+              // Let's notify the user that we failed, but other bot might not.
+              this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailedButWillTryWithOtherBot])
+                .catch(err => {
+                  error(`Trying to send ${NodeStates.relayingNodeFailedButWillTryWithOtherBot} message to ${_hoprNodeAddress} failed.`, err)
+                })
+
+              // 4.A.4.
+              this._sendMessageFromBot(nextBot, ` Help request with secret=${this.secret} to ${nextBot}, if can‘t use otherBots=${otherBotsShortVersion}`)
+                .catch(err => {
+                  error(`Trying to send HELP message to ${_hoprNodeAddress} failed.`, err)
+                })
+            }
           }, RELAY_VERIFICATION_CYCLE_IN_MS),
         )
       }
@@ -447,8 +498,9 @@ export class Coverbot implements Bot {
       : [tweet, NodeStates.tweetVerificationFailed]
   }
 
-  protected async _verifySecret(message: IMessage): Promise<[number, NodeStates]> {
-    const correctSecret = message.text.includes(`secret=${this.secret}`)
+  protected async _verifySecret(message: IMessage, secret?: number): Promise<[number, NodeStates]> {
+    const secretToVerify = secret || this.secret;
+    const correctSecret = message.text.includes(`secret=${secretToVerify}`)
 
     return correctSecret
       ? [this.secret, NodeStates.secretVerificationSucceeded]
@@ -458,65 +510,87 @@ export class Coverbot implements Bot {
   async handleMessage(message: IMessage) {
     log(`- handleMessage | ${this.botName} <- ${message.from}: ${message.text}`)
 
-    if (message.from === this.address) {
+    if (Object.keys(this.bots).includes(message.from)) {
       /*
-       * We have done a succeful round trip!
-       * 1. Lets avoid sending more messages to eternally loop
-       *    messages across the network by returning within this if.
-       * 2. Let's verify that the relayed message came from one of our bots.
-       * 3. Let's notify the user about the successful relay.
-       * 4. Let's recover the timeout from our relayerTimeout
-       *    and clear it before it removes the node.
-       * 5. Let's update the good node score for being alive
-       *    and relaying messages successfully.
+       * We now listen to both our address and messages from other coverbots. There
+       * are help requests we can receive from another coverbot (B), and succesful relays
+       * we can receive from ourselves (A)
+       *
+       * if ourselves (A),
+       *   We have done a successful roundtrip
+       *
+       * if from another coverbot (B)
+       *   We are requested for help to do a verify on behalf another coverbot.
+       *
        */
-      const relayerAddress = getHOPRNodeAddressFromContent(message.text)
-      const secretVerification = await this._verifySecret(message).then(res => res[1])
 
-      // 2.
-      if (secretVerification === NodeStates.secretVerificationFailed) {
-        log(`- handleMessage | Secret verification failed: ${relayerAddress}`)
+      if (message.from === this.address) {
+        /*
+         * We have done a succesful round trip! (A)
+         * 1. Lets avoid sending more messages to eternally loop
+         *    messages across the network by returning within this if.
+         * 2. Let's verify that the relayed message came from one of our bots.
+         * 3. Let's notify the user about the successful relay.
+         * 4. Let's recover the timeout from our relayerTimeout
+         *    and clear it before it removes the node.
+         * 5. Let's update the good node score for being alive
+         *    and relaying messages successfully.
+         */
+        const relayerAddress = getHOPRNodeAddressFromContent(message.text)
+        const secretVerification = await this._verifySecret(message).then(res => res[1])
 
-        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationFailed])
+        // 2.
+        if (secretVerification === NodeStates.secretVerificationFailed) {
+          log(`- handleMessage | Secret verification failed: ${relayerAddress}`)
+
+          this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationFailed])
+            .catch(err => {
+              error(`Trying to send ${NodeStates.secretVerificationFailed} message to ${relayerAddress} failed.`, err)
+            })
+
+          return
+        } else {
+          log(`- handleMessage | Secret verification succeeded: ${relayerAddress}`)
+
+          this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationSucceeded])
+            .catch(err => {
+              error(`Trying to send ${NodeStates.secretVerificationSucceeded} message to ${relayerAddress} failed.`, err)
+            })
+        }
+
+        // 3.
+        log(`- handleMessage | Successful Relay: ${relayerAddress}`)
+        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.relayingNodeSucceded])
           .catch(err => {
-            error(`Trying to send ${NodeStates.secretVerificationFailed} message to ${relayerAddress} failed.`,err)
+            error(`Trying to send ${NodeStates.relayingNodeSucceded} message to ${relayerAddress} failed.`, err)
           })
 
+        // 4.
+        const relayerTimeout = this.relayTimeouts.get(relayerAddress)
+        clearTimeout(relayerTimeout)
+        this.relayTimeouts.delete(relayerAddress)
+
+        // 5.
+        const [newScore] = await Promise.all([
+          this._increaseHoprAddressScore(relayerAddress, (prevScore) => {
+            if (!prevScore) return ScoreRewards.relayed
+            return prevScore + ScoreRewards.relayed
+          }),
+          //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
+        ])
+        console.log(`New score ${newScore} updated for ${relayerAddress}`)
+        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.verifiedNode])
+
+        // 1.
         return
+
       } else {
-        log(`- handleMessage | Secret verification succeeded: ${relayerAddress}`)
-
-        this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.secretVerificationSucceeded])
-          .catch(err => {
-            error(`Trying to send ${NodeStates.secretVerificationSucceeded} message to ${relayerAddress} failed.`,err)
-          })
+        /*
+        * We are requested for help! (B)
+        *
+        *
+        */
       }
-
-      // 3.
-      log(`- handleMessage | Successful Relay: ${relayerAddress}`)
-      this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.relayingNodeSucceded])
-        .catch(err => {
-          error(`Trying to send ${NodeStates.relayingNodeSucceded} message to ${relayerAddress} failed.`,err)
-        })
-
-      // 4.
-      const relayerTimeout = this.relayTimeouts.get(relayerAddress)
-      clearTimeout(relayerTimeout)
-      this.relayTimeouts.delete(relayerAddress)
-
-      // 5.
-      const [ newScore ] = await Promise.all([
-        this._increaseHoprAddressScore(relayerAddress, (prevScore) => {
-          if (!prevScore) return ScoreRewards.relayed
-          return prevScore + ScoreRewards.relayed
-        }),
-        //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
-      ])
-      console.log(`New score ${newScore} updated for ${relayerAddress}`)
-      this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.verifiedNode])
-
-      // 1.
-      return
     }
 
     if (this.relayTimeouts.get(message.from)) {
@@ -534,7 +608,7 @@ export class Coverbot implements Bot {
       // 2.
       this._sendMessageFromBot(message.from, NodeStateResponses[NodeStates.relayingNodeInProgress])
         .catch(err => {
-          error(`Trying to send ${NodeStates.relayingNodeInProgress} message to ${message.from} failed.`,err)
+          error(`Trying to send ${NodeStates.relayingNodeInProgress} message to ${message.from} failed.`, err)
         })
 
       // 3.
