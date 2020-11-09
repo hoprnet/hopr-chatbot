@@ -60,7 +60,7 @@ export const NodeStateResponses = {
       Thank you for participating in our incentivized network!
     `,
     [NodeStates.onlineNode]: `\n
-      Node online! Relaying a message to verify your ability to
+      Node found! Relaying a message to verify your ability to
       send messages to other nodes in the network.
     `,
     [NodeStates.verifiedNode]: `\n

@@ -305,6 +305,131 @@ export class Coverbot implements Bot {
     })
   }
 
+  protected async _verificationProcess(_hoprNodeAddress, prevBots = []) {
+    this._sendMessageFromBot(_hoprNodeAddress, BotResponses[BotCommands.verify])
+      .catch(err => {
+        error(`Trying to send ${BotCommands.verify} message to ${_hoprNodeAddress} failed.`, err)
+      })
+    /*
+      * We switched from “send and forget” to “send and listen”
+      * 1. We inmediately send a message to user, telling them we find them online.
+      * 2. We use them as a relayer, expecting to get our message later.
+      * 3. We save a timeout, to fail the node if the relayed package doesnt come back.
+      * 4. We wait RELAY_VERIFICATION_CYCLE_IN_MS seconds for the relay to get back.
+      *    A) If we don't get the message back before RELAY_VERIFICATION_CYCLE_IN_MS,
+      *
+      *    B) If we DO get the message back, we’ll get it in the handler function and
+      *    processed there as a successful relay.
+      */
+
+    // 1.
+    console.log(`- verificationCycle | Relaying node ${_hoprNodeAddress}, checking in ${RELAY_VERIFICATION_CYCLE_IN_MS}`)
+    this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.onlineNode])
+      .catch(err => {
+        error(`Trying to send ${NodeStates.onlineNode} message to ${_hoprNodeAddress} failed.`, err)
+      })
+
+    // 2. Open a payment channel to the hoprNodeAddress
+    const pubkey = await convertPubKeyFromB58String(_hoprNodeAddress)
+    const counterParty = await pubKeyToPeerId(pubkey.marshal())
+    const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(RELAY_HOPR_REWARD));
+    this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${u8aToHex(channelId)}`)
+      .catch(err => {
+        error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`, err)
+      })
+
+    // 3. Send now a relayed message.
+    this._sendMessageFromBot(this.address, ` Relaying package with secret=${this.secret} to ${_hoprNodeAddress}`, [_hoprNodeAddress])
+      .catch(err => {
+        error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`, err)
+      })
+
+    // 4.
+    this.relayTimeouts.set(
+      _hoprNodeAddress,
+      setTimeout(() => {
+        // 4.1
+        /*
+          * The timeout passed, and we didn‘t get the message back, so now
+          * 4.A.1 We identify how many coverbots (other than us) can help us to relay.
+          *   4.A.1.1 We create an array of these bots and store that value internally.
+          *   4.A.1.2 In case prev bots are passed, we make sure to use these instead.
+          * 4.A.2 We pick another coverbot from our bots array to try and relay.
+          * 4.A.3 We send that coverbot both the other bots available and help request.
+          * NB: UPDATED BY JA FOR Basodino v2 [4.1.1 Internally log that this is the case.]
+          * NB: UPDATED BY JA FOR Basodino v2 [4.1.2 Let the node that we couldn't get our response back in time.]
+          * NB: UPDATED BY JA FOR Basodino v2 [4.1.3 Remove from timeout so they can try again somehow.]
+          * NB: DELETED BY PB AFTER CHAT 10/9 [4.1.4 Remove from our verified node and write to the database]
+          */
+
+        // 4.A.1
+        log(`- verificationCycle | Timeout :: No response from ${_hoprNodeAddress}, will ask another coverbot to give a try.`)
+        const botsAvailable = Object.keys(this.bots)
+
+        if (prevBots.length <= 0) {
+          // 4.A.1.1
+          log(`- verificationCycle | Timeout :: We have no prev bots stored in our system, will use all ${botsAvailable.length} bots from database.`)
+          log(`- verificationCycle | Timeout :: Since we found ${botsAvailable.length} bots available including myself, I‘ll remove me.`)
+          const otherBots = botsAvailable.filter(bot => bot !== this.address)
+          log(`- verificationCycle | Timeout :: Currently there are at least ${otherBots.length} other bots willing to help.`)
+
+          // 4.A.2
+          const nextBot = otherBots[0]
+          log(`- verificationCycle | Timeout :: We have found our next bot to be ${nextBot}.`)
+          const otherBotsShortVersion = otherBots.map(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
+          log(`- verificationCycle | Timeout :: We'll be sending the next other bots to our helper: ${otherBotsShortVersion.toString()}.`)
+        } else {
+          // 4.A.1.2
+          log(`- verificationCycle | Timeout :: We have ${prevBots.length} prev bots stored in our system: ${prevBots.toString()}`)
+          log(`- verificationCycle | Timeout :: We‘ll remove ourselves from these prev bots, to have ${prevBots.length - 1} prev bots.`)
+          const otherPrevBots = prevBots.filter(bot => bot !== this.address.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
+          log(`- verificationCycle | Timeout :: We‘ll grab the next prev bot for us to use: ${otherPrevBots[0]}`)
+          const otherPrevBot = otherPrevBots[0]
+
+          // 4.A.2
+          const nextBot = otherPrevBot && botsAvailable.filter(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS) === otherPrevBot)
+          log(`- verificationCycle | Timeout :: We have found our next bot to be ${nextBot} from our prev bots.`)
+          const otherBotsShortVersion = otherPrevBots;
+          log(`- verificationCycle | Timeout :: We'll be sending the remaining prev bots to our helper: ${otherBotsShortVersion.toString()}.`)
+        }
+
+        if (!nextBot) {
+          // There are no other bots to help us, we default to our normal path.
+          log(`- verificationCycle | Timeout :: No bots to ask for help, we’ll just stop here.`)
+
+          // 4.1.2
+          this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
+            .catch(err => {
+              error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`, err)
+            })
+
+          // 4.1.3
+          this.relayTimeouts.delete(_hoprNodeAddress)
+
+          // 4.1.4
+          //this.verifiedHoprNodes.delete(_hoprNodeAddress)
+          //this.dumpData()
+
+        } else {
+          // There are at least one additional bot we can ask for help.
+          log(`- verificationCycle | Timeout :: A brave bot ${nextBot} is here to help us.`)
+
+          // Let's notify the user that we failed, but other bot might not.
+          this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailedButWillTryWithOtherBot])
+            .catch(err => {
+              error(`Trying to send ${NodeStates.relayingNodeFailedButWillTryWithOtherBot} message to ${_hoprNodeAddress} failed.`, err)
+            })
+
+          // 4.A.3.
+          this._sendMessageFromBot(nextBot, ` Help request with secret=${this.secret}, please relay to relayedBot=${_hoprNodeAddress}, if can‘t use otherBots=${otherBotsShortVersion}`)
+            .catch(err => {
+              error(`Trying to send HELP message to ${nextBot} failed.`, err)
+            })
+        }
+      }, RELAY_VERIFICATION_CYCLE_IN_MS),
+    )
+  }
+
   protected async _verificationCycle() {
     if (!this.initialized) {
       await this.initialize()
@@ -353,108 +478,7 @@ export class Coverbot implements Bot {
         //await this.dumpData()
         return
       } else {
-        this._sendMessageFromBot(_hoprNodeAddress, BotResponses[BotCommands.verify])
-          .catch(err => {
-            error(`Trying to send ${BotCommands.verify} message to ${_hoprNodeAddress} failed.`, err)
-          })
-        /*
-         * We switched from “send and forget” to “send and listen”
-         * 1. We inmediately send a message to user, telling them we find them online.
-         * 2. We use them as a relayer, expecting to get our message later.
-         * 3. We save a timeout, to fail the node if the relayed package doesnt come back.
-         * 4. We wait RELAY_VERIFICATION_CYCLE_IN_MS seconds for the relay to get back.
-         *    A) If we don't get the message back before RELAY_VERIFICATION_CYCLE_IN_MS,
-         *
-         *    B) If we DO get the message back, we’ll get it in the handler function and
-         *    processed there as a successful relay.
-         */
-
-        // 1.
-        console.log(`Relaying node ${_hoprNodeAddress}, checking in ${RELAY_VERIFICATION_CYCLE_IN_MS}`)
-        this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.onlineNode])
-          .catch(err => {
-            error(`Trying to send ${NodeStates.onlineNode} message to ${_hoprNodeAddress} failed.`, err)
-          })
-
-        // 2. Open a payment channel to the hoprNodeAddress
-        const pubkey = await convertPubKeyFromB58String(_hoprNodeAddress)
-        const counterParty = await pubKeyToPeerId(pubkey.marshal())
-        const { channelId } = await this.node.openPaymentChannel(counterParty, new BN(RELAY_HOPR_REWARD));
-        this._sendMessageFromBot(_hoprNodeAddress, `Opened a payment channel to you at ${u8aToHex(channelId)}`)
-          .catch(err => {
-            error(`Trying to send OPENNED_PAYMENT_CHANNEL message to ${_hoprNodeAddress} failed.`, err)
-          })
-
-        // 3. Send now a relayed message.
-        this._sendMessageFromBot(this.address, ` Relaying package with secret=${this.secret} to ${_hoprNodeAddress}`, [_hoprNodeAddress])
-          .catch(err => {
-            error(`Trying to send RELAY message to ${_hoprNodeAddress} failed.`, err)
-          })
-
-        // 3.
-        this.relayTimeouts.set(
-          _hoprNodeAddress,
-          setTimeout(() => {
-            // 4.1
-            /*
-             * The timeout passed, and we didn‘t get the message back, so now
-             * 4.A.1 We identify how many coverbots (other than us) can help us to relay.
-             * 4.A.2 We create an array of these bots and store that value internally.
-             * 4.A.3 We pick another coverbot from our bots array to try and relay.
-             * 4.A.4 We send that coverbot both the other bots available and help request.
-             * NB: UPDATED BY JA FOR Basodino v2 [4.1.1 Internally log that this is the case.]
-             * NB: UPDATED BY JA FOR Basodino v2 [4.1.2 Let the node that we couldn't get our response back in time.]
-             * NB: UPDATED BY JA FOR Basodino v2 [4.1.3 Remove from timeout so they can try again somehow.]
-             * NB: DELETED BY PB AFTER CHAT 10/9 [4.1.4 Remove from our verified node and write to the database]
-             */
-
-            // 4.A.1
-            log(`- verificationCycle | Timeout :: No response from ${_hoprNodeAddress}, will ask another coverbot to give a try.`)
-            const botsAvailable = Object.keys(this.bots)
-            const otherBots = botsAvailable.filter(bot => bot !== this.address)
-            log(`- verificationCycle | Timeout :: Currently there are at least ${otherBots.length} other bots willing to help.`)
-
-            // 4.A.2
-            const otherBotsShortVersion = otherBots.map(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
-
-            // 4.A.3
-            const nextBot = otherBots[0]
-
-            if (!nextBot) {
-              // There are no other bots to help us, we default to our normal path.
-              log(`- verificationCycle | Timeout :: No bots to ask for help, we’ll just stop here.`)
-
-              // 4.1.2
-              this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailed])
-                .catch(err => {
-                  error(`Trying to send ${NodeStates.relayingNodeFailed} message to ${_hoprNodeAddress} failed.`, err)
-                })
-
-              // 4.1.3
-              this.relayTimeouts.delete(_hoprNodeAddress)
-
-              // 4.1.4
-              //this.verifiedHoprNodes.delete(_hoprNodeAddress)
-              //this.dumpData()
-
-            } else {
-              // There are at least one additional bot we can ask for help.
-              log(`- verificationCycle | Timeout :: A brave bot ${nextBot} is here to help us.`)
-
-              // Let's notify the user that we failed, but other bot might not.
-              this._sendMessageFromBot(_hoprNodeAddress, NodeStateResponses[NodeStates.relayingNodeFailedButWillTryWithOtherBot])
-                .catch(err => {
-                  error(`Trying to send ${NodeStates.relayingNodeFailedButWillTryWithOtherBot} message to ${_hoprNodeAddress} failed.`, err)
-                })
-
-              // 4.A.4.
-              this._sendMessageFromBot(nextBot, ` Help request with secret=${this.secret} to ${nextBot}, if can‘t use otherBots=${otherBotsShortVersion}`)
-                .catch(err => {
-                  error(`Trying to send HELP message to ${_hoprNodeAddress} failed.`, err)
-                })
-            }
-          }, RELAY_VERIFICATION_CYCLE_IN_MS),
-        )
+        return this._verificationProcess(_hoprNodeAddress)
       }
     } catch (err) {
       console.log('[ _verificationCycle ] Error caught - ', err)
@@ -593,6 +617,28 @@ export class Coverbot implements Bot {
         */
 
         log(`- handleMessage | Help Request :: We got a help request from ${message.from} with content ${message.text}`)
+
+        const secretToVerify = bots[message.from]
+        const secretVerification = await this._verifySecret(message, secretToVerify).then(res => res[1])
+
+        if (secretVerification === NodeStates.secretVerificationFailed) {
+          log(`- handleMessage | Help Request :: Secret verification failed, ${message.from} isn’t a recognized coverbot.`)
+          return
+        } else {
+          log(`- handleMessage | Help Request :: Secret verification succeeded, ${message.from} is a valid bot asking for help.`)
+          const relayerAddress = getHOPRNodeAddressFromContent(message.text)
+          log(`- handleMessage | Help Request :: Identified node ${relayerAddress} that wants to be relayed from help request.`)
+
+          /*
+          * Grabbing a=b[c,d...] w/regex ([0]) to do a=b[c,d...].split(=)
+          * Grabbing b[c,d...], from [1] to do b[c,d...].split(,)
+          */
+          const otherBotsRegex = /(\w+)=([^\s]+)/g
+          const otherBots = message.text.match(otherBotsRegex)[0].split('=')[1].split(',')
+          this._verificationProcess(relayerAddress, otherBots)
+        }
+
+        return
       }
     }
 
