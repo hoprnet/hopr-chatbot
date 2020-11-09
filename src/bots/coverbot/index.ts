@@ -366,6 +366,8 @@ export class Coverbot implements Bot {
         log(`- verificationCycle | Timeout :: No response from ${_hoprNodeAddress}, will ask another coverbot to give a try.`)
         const botsAvailable = Object.keys(this.bots)
 
+        let nextBot, otherBotsShortVersion;
+
         if (prevBots.length <= 0) {
           // 4.A.1.1
           log(`- verificationCycle | Timeout :: We have no prev bots stored in our system, will use all ${botsAvailable.length} bots from database.`)
@@ -374,9 +376,9 @@ export class Coverbot implements Bot {
           log(`- verificationCycle | Timeout :: Currently there are at least ${otherBots.length} other bots willing to help.`)
 
           // 4.A.2
-          const nextBot = otherBots[0]
+          nextBot = otherBots[0]
           log(`- verificationCycle | Timeout :: We have found our next bot to be ${nextBot}.`)
-          const otherBotsShortVersion = otherBots.map(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
+          otherBotsShortVersion = otherBots.map(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS))
           log(`- verificationCycle | Timeout :: We'll be sending the next other bots to our helper: ${otherBotsShortVersion.toString()}.`)
         } else {
           // 4.A.1.2
@@ -387,9 +389,9 @@ export class Coverbot implements Bot {
           const otherPrevBot = otherPrevBots[0]
 
           // 4.A.2
-          const nextBot = otherPrevBot && botsAvailable.filter(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS) === otherPrevBot)
+          nextBot = otherPrevBot && botsAvailable.filter(bot => bot.substr(-AMOUNT_OF_IDENTIFIABLE_LETTERS) === otherPrevBot)
           log(`- verificationCycle | Timeout :: We have found our next bot to be ${nextBot} from our prev bots.`)
-          const otherBotsShortVersion = otherPrevBots;
+          otherBotsShortVersion = otherPrevBots;
           log(`- verificationCycle | Timeout :: We'll be sending the remaining prev bots to our helper: ${otherBotsShortVersion.toString()}.`)
         }
 
@@ -618,7 +620,7 @@ export class Coverbot implements Bot {
 
         log(`- handleMessage | Help Request :: We got a help request from ${message.from} with content ${message.text}`)
 
-        const secretToVerify = bots[message.from]
+        const secretToVerify = this.bots[message.from]
         const secretVerification = await this._verifySecret(message, secretToVerify).then(res => res[1])
 
         if (secretVerification === NodeStates.secretVerificationFailed) {
