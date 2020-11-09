@@ -191,6 +191,41 @@ export class Coverbot implements Bot {
     })
   }
 
+  private async _initializeConnectedNodes(): Promise<void> {
+    //@TODO: Rename SCORE_FROM and use its own proper variable
+    if (!COVERBOT_RESTORE_SCORE_FROM) return
+    log(`- _initializeConnectedNodes | Restoring connected ndoes from '${COVERBOT_RESTORE_SCORE_FROM}' if connected nodes are empty`)
+
+    return new Promise<void>((resolve, reject) => {
+      log(`- _initializeConnectedNodes | Loading connected nodes`)
+
+      stateDbRef.child("connected").once("value", async (snapshot, error) => {
+        try {
+          if (error) return reject(error)
+          if (snapshot.exists()) {
+            log(`- _initializeConnectedNodes | Connected nodes, will not restore connected nodes`)
+            return resolve()
+          }
+
+          log(`- _initializeConnectedNodes | Connected nodes not found, restoring nodes from ${COVERBOT_RESTORE_SCORE_FROM}`)
+          const previousConnectedNodes = await db.ref(`/${COVERBOT_RESTORE_SCORE_FROM}/state`).child('connected').once("value")
+          if (!previousConnectedNodes.exists()) {
+            log(`- _initializeConnectedNodes | No connected nodes found in ${COVERBOT_RESTORE_SCORE_FROM}`)
+            return resolve()
+          }
+          const connectedNodes = previousConnectedNodes.val() || []
+          log(`- initializeScores | Found ${connectedNodes.length} nodes from ${COVERBOT_RESTORE_SCORE_FROM}.`)
+          await stateDbRef.child("connected").set(connectedNodes)
+          log(`- initializeScores | Added ${connectedNodes.length} nodes to our connected nodes array.`)
+
+          return resolve()
+        } catch (error) {
+          return reject(error)
+        }
+      })
+    })
+  }
+
   private async _initializeScores(): Promise<void> {
     if (!COVERBOT_RESTORE_SCORE_FROM) return
     log(`- initializeScores | Restoring scores from '${COVERBOT_RESTORE_SCORE_FROM}' if our scores don't exist`)
@@ -240,8 +275,9 @@ export class Coverbot implements Bot {
     log(`- initialize | Initializing database data`)
 
     await Promise.all([
-      this._loadState(),
       this._initializeScores(),
+      this._initializeConnectedNodes(),
+      this._loadState(),
       this._saveBotId(),
     ])
 
