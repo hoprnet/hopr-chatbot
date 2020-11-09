@@ -250,16 +250,17 @@ export class Coverbot implements Bot {
 
   protected async dumpData() {
     log(`- dumpData | Starting dumping data in Database`)
+
+    if (COVERBOT_SUPPORT_MODE) {
+      log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)
+      return;
+    }
+
     //@TODO: Ideally we move this to a more suitable place.
     if (!this.ethereumAddress) {
       this.chainId = await Utils.getChainId(this.xdaiWeb3)
       this.network = Utils.getNetworkName(this.chainId) as Networks
       this.ethereumAddress = await this._getEthereumAddressFromHOPRAddress(this.address)
-    }
-
-    if (COVERBOT_SUPPORT_MODE) {
-      log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)
-      return;
     }
 
     const connectedNodes = this.node.listConnectedPeers()
@@ -580,7 +581,7 @@ export class Coverbot implements Bot {
           }),
           //this.node.withdraw({ currency: 'HOPR', recipient: relayerEthereumAddress, amount: `${RELAY_HOPR_REWARD}`}),
         ])
-        console.log(`New score ${newScore} updated for ${relayerAddress}`)
+        log(`- handleMessage | New score ${newScore} updated for ${relayerAddress}`)
         this._sendMessageFromBot(relayerAddress, NodeStateResponses[NodeStates.verifiedNode])
 
         // 1.
@@ -589,9 +590,9 @@ export class Coverbot implements Bot {
       } else {
         /*
         * We are requested for help! (B)
-        *
-        *
         */
+
+        log(`- handleMessage | Help Request :: We got a help request from ${message.from} with content ${message.text}`)
       }
     }
 

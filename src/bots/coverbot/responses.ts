@@ -97,6 +97,16 @@ export const NodeStateResponses = {
       Relaying successful! I've obtained a packet anonymously from you,
       and we can move to the next verification step.
     `,
+    [NodeStates.secretVerificationFailed]: `\n
+      Relaying verification failed. This means your relay was executed as a test by
+      one of the admins to test your connection with coverbot. If you see this message,
+      it means coverbot can successfully send you messages during relay.
+    `,
+    [NodeStates.secretVerificationSucceeded]: `\n
+      Relaying verification succeeded. This means your relay was executed by either a
+      coverbot or a support coverbot. If you see this message, it means coverbot has
+      relayed a message to you succesfully and you‘ll soon see your score increase.
+    `
 }
 
 export const VERIFY_MESSAGE = `\n
