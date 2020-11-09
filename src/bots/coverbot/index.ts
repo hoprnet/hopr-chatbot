@@ -251,6 +251,9 @@ export class Coverbot implements Bot {
   protected async dumpData() {
     log(`- dumpData | Starting dumping data in Database`)
 
+    const connectedNodes = this.node.listConnectedPeers()
+    log(`- dumpData | Detected ${connectedNodes} in the network w/bootstrap servers ${this.node.getBootstrapServers()}`)
+
     if (COVERBOT_SUPPORT_MODE) {
       log(`- dumpData | ${this.address} is enabled as a support coverbot, no writing done to state table`)
       return;
@@ -262,9 +265,6 @@ export class Coverbot implements Bot {
       this.network = Utils.getNetworkName(this.chainId) as Networks
       this.ethereumAddress = await this._getEthereumAddressFromHOPRAddress(this.address)
     }
-
-    const connectedNodes = this.node.listConnectedPeers()
-    log(`- dumpData | Detected ${connectedNodes} in the network w/bootstrap servers ${this.node.getBootstrapServers()}`)
 
     const state = {
       connectedNodes,
@@ -306,6 +306,9 @@ export class Coverbot implements Bot {
   }
 
   protected async _verificationProcess(_hoprNodeAddress, prevBots = []) {
+    log(`- _verificationProcess | Starting verification process, trying to relay ${_hoprNodeAddress}.`)
+    prevBots.length > 0 && log(`- _verificationProcess | The following prevBots had been given: ${prevBots.toString()}`)
+
     this._sendMessageFromBot(_hoprNodeAddress, BotResponses[BotCommands.verify])
       .catch(err => {
         error(`Trying to send ${BotCommands.verify} message to ${_hoprNodeAddress} failed.`, err)
@@ -637,6 +640,7 @@ export class Coverbot implements Bot {
           */
           const otherBotsRegex = /(\w+)=([^\s]+)/g
           const otherBots = message.text.match(otherBotsRegex)[0].split('=')[1].split(',')
+          log(`- handleMessage | Help Request :: Trying to get ${relayerAddress} to relay, passing ${otherBots.toString()} as bots received`)
           this._verificationProcess(relayerAddress, otherBots)
         }
 
