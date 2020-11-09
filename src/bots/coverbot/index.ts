@@ -466,6 +466,9 @@ export class Coverbot implements Bot {
             .catch(err => {
               error(`Trying to send HELP message to ${nextBot} failed.`, err)
             })
+
+          // We ensure to clear timout to give the node another chance in the next cycle.
+          this.relayTimeouts.delete(_hoprNodeAddress)
         }
       }, RELAY_VERIFICATION_CYCLE_IN_MS),
     )
