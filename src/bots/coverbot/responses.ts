@@ -60,7 +60,7 @@ export const NodeStateResponses = {
       Thank you for participating in our incentivized network!
     `,
     [NodeStates.onlineNode]: `\n
-      Node online! Relaying a message to verify your ability to
+      Node found! Relaying a message to verify your ability to
       send messages to other nodes in the network.
     `,
     [NodeStates.verifiedNode]: `\n
@@ -70,6 +70,13 @@ export const NodeStateResponses = {
       For more information, go to https://network.hoprnet.org
   
       Thank you for participating in our incentivized network!
+    `,
+    [NodeStates.relayingNodeFailedButWillTryWithOtherBot]: `\n
+      Relaying failed. I can reach you, but you can’t reach me...
+
+      This time though, I’ll try and use other bots to see if they can reach you.
+
+      Might luck be on their favour.
     `,
     [NodeStates.relayingNodeFailed]: `\n
       Relaying failed. I can reach you, but you can’t reach me...
@@ -90,6 +97,16 @@ export const NodeStateResponses = {
       Relaying successful! I've obtained a packet anonymously from you,
       and we can move to the next verification step.
     `,
+    [NodeStates.secretVerificationFailed]: `\n
+      Relaying verification failed. This means your relay was executed as a test by
+      one of the admins to test your connection with coverbot. If you see this message,
+      it means coverbot can successfully send you messages during relay.
+    `,
+    [NodeStates.secretVerificationSucceeded]: `\n
+      Relaying verification succeeded. This means your relay was executed by either a
+      coverbot or a support coverbot. If you see this message, it means coverbot has
+      relayed a message to you succesfully and you‘ll soon see your score increase.
+    `
 }
 
 export const VERIFY_MESSAGE = `\n

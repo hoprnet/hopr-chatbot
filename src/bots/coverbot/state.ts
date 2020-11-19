@@ -8,6 +8,7 @@ export enum NodeStates {
   secretVerificationFailed = 'FAILED_SECRET_VERIFICATION',
   secretVerificationSucceeded = 'SUCCEEDED_SECRET_VERIFICATION',
   relayingNodeFailed = 'FAILED_RELAYING_PACKET',
+  relayingNodeFailedButWillTryWithOtherBot = 'FAILED_RELAYING_PACKET_WILL_RETRY',
   relayingNodeInProgress = 'IN_PROGRESS_RELAYING_PACKET',
   relayingNodeSucceded = 'SUCCEEDED_RELAYING_PACKET',
   onlineNode = 'ONLINE',
