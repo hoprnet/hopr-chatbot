@@ -1,3 +1,10 @@
+# This repository is no longer maintained. 
+
+**Please go to https://github.com/hoprnet/hoprnet and https://github.com/hoprnet/hopr-devrel for latest developments in the HOPR protocol
+and HOPR apps development.**
+
+---
+
 <p align="center"><a href="https://hoprnet.org" target="_blank" rel="noopener noreferrer"><img width="100" src="https://github.com/hoprnet/hopr-assets/blob/master/v1/logo/hopr_logo_padded.png?raw=true" alt="HOPR Logo"></a></p>
 <h2 align="center">HOPR Chatbot</h2>
 
